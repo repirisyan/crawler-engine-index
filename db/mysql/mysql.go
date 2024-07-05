@@ -20,7 +20,7 @@ func Init() {
     database := os.Getenv("DB_DATABASE_MYSQL")
 
     // Define the data source name (DSN) for root user with no password
-    dsn := user+":"+password+"@tcp("+host+")/"+database
+    dsn := fmt.Sprintf("%s:%s@tcp(%s)/%s", user, password, host, database)
 
     // Open a connection to the database
     var err error
