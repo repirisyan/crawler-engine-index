@@ -157,12 +157,11 @@ func removeDuplicateData(){
                 continue
             }
 
-            deleteResult, err := collection.DeleteOne(context.Background(), bson.M{"_id": idToDelete})
+            _, err := collection.DeleteOne(context.Background(), bson.M{"_id": idToDelete})
             if err != nil {
                 log.Printf("Failed to delete duplicate: %v", err)
                 continue
             }
-            log.Printf("Deleted duplicate document: %v\n", deleteResult)
         }
     }
 

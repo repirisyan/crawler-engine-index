@@ -5,15 +5,22 @@ import (
     "database/sql"
     "fmt"
     "log"
-
+    "os"
+    "github.com/joho/godotenv"
     _ "github.com/go-sql-driver/mysql"
 )
 
 var DB *sql.DB
 
 func Init() {
+    godotenv.Load()
+    host := os.Getenv("DB_HOST_MYSQL")
+    user := os.Getenv("DB_USER_MYSQL")
+    password := os.Getenv("DB_PASSWORD_MYSQL")
+    database := os.Getenv("DB_DATABASE_MYSQL")
+
     // Define the data source name (DSN) for root user with no password
-    dsn := "root:@tcp(127.0.0.1:3306)/crawler"
+    dsn := user+":"+password+"@tcp("+host+")/"+database
 
     // Open a connection to the database
     var err error
