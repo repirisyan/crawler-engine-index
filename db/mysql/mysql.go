@@ -13,7 +13,10 @@ import (
 var DB *sql.DB
 
 func Init() {
-    godotenv.Load()
+    err := godotenv.Load()
+    if err != nil {
+        log.Fatal("Error loading .env file")
+    }
     host := os.Getenv("DB_HOST_MYSQL")
     user := os.Getenv("DB_USER_MYSQL")
     password := os.Getenv("DB_PASSWORD_MYSQL")
@@ -23,7 +26,6 @@ func Init() {
     dsn := fmt.Sprintf("%s:%s@tcp(%s)/%s", user, password, host, database)
 
     // Open a connection to the database
-    var err error
     DB, err = sql.Open("mysql", dsn)
     if err != nil {
         log.Fatal(err)
