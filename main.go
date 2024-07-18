@@ -2,56 +2,172 @@ package main
 
 import (
 	"context"
-	"crawler-index/db/mongo"
-	"crawler-index/db/mysql"
-	"crawler-index/models/mysql"
 	"fmt"
+	"log"
+	"os"
+
+	"crawler-index/db/mongodb"
+	"crawler-index/db/mysql"
+	"crawler-index/models/mongodb/product"
+	"crawler-index/models/mongodb/supervision"
+	"crawler-index/models/mongodb/temp_item"
+	"crawler-index/models/mysql/supervision"
+	"crawler-index/models/mysql/supervision_list"
+	"crawler-index/models/mysql/temp_item"
+
+	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"log"
 )
 
 func main() {
-	insertData()
-	removeDuplicateData()
+	mysql.Init()
+	defer mysql.DB.Close()
+	removeDuplicateData("temp_items")
+	storeCrawlerData()
+	storeSupervision()
+	removeDuplicateData("supervisions")
+	storeIndexData()
+	removeDuplicateData("products")
+	storeMysqlSupervision()
 }
 
-func insertData() {
-	mysql.Init()
-	if err := mongodb.InitMongoDB("mongodb://localhost:27017"); err != nil {
-		log.Fatalf("Failed to initialize MongoDB: %v", err)
-	}
-
+// Store Data from temp_item to products in mongodb
+func storeIndexData() {
 	limit := 1000
 	offset := 0
-
-	client := mongodb.GetMongoClient()
-	if client == nil {
-		log.Fatal("MongoDB client is nil")
-	}
-
-	collection := client.Database("crawler").Collection("products")
-
 	for {
-		products, err := product.GetAllProduct(offset, limit)
+		products, err := MongoTempItem.GetAllProducts(offset, limit)
 		if err != nil {
 			fmt.Printf("Error fetching products: %v\n", err)
 			break
 		}
+		// Convert struct to interface
+		var productResult []interface{}
+		for _, p := range products {
+			productResult = append(productResult, MongoProduct.IndexProduct{
+				Title:       p.Title,
+				Link:        p.Link,
+				Image:       p.Image,
+				Price:       p.Price,
+				Rating:      p.Rating,
+				Sold:        p.Sold,
+				Seller:      p.Seller,
+				Location:    p.Location,
+				Comodity:    p.Comodity,
+				Keyword:     p.Keyword,
+				Marketplace: p.Marketplace,
+				Created_at:  p.Created_at,
+			})
+		}
+
+		if len(productResult) > 0 {
+			err = MongoProduct.StoreProducts(productResult)
+				if err != nil {
+				log.Printf("Failed to insert batch products: %v\n", err)
+				continue
+			}
+    	}
+		
+
+		if len(products) == 0 {
+			// No more records to fetch
+			break
+		}
+
+		// Update offset for next iteration
+		offset += limit
+	}
+
+	defer mongodb.CloseMongoDB()
+}
+
+// Store Data from temp_item to supervisions in mongodb based on search key
+func storeSupervision(){
+	for {
+		supervisionList, err := mysqlSupervisionList.GetAllData()
+		if err != nil {
+			fmt.Printf("Error fetching supervision List: %v\n", err)
+			break
+		}
+		fmt.Printf("Supervision List: %v\n", supervisionList)
+		for _, svl := range supervisionList {
+			var productResult []interface{}
+			temp_items, err := mysqlTempItem.GetAllData(svl.Name)
+			if err != nil {
+				fmt.Printf("Error fetching Temp Item: %v\n", err)
+				break
+			}
+			for _, temp_item := range temp_items {
+				productResult = append(productResult, MongoSupervision.Product{
+					Title:       temp_item.Title,
+					Link:        temp_item.Link,
+					Image:       temp_item.Image,
+					Price:       temp_item.Price,
+					Sold:        temp_item.Sold,
+					Seller:      temp_item.Seller,
+					Location:    temp_item.Location,
+					Comodity_id:    temp_item.Comodity_id,
+					Marketplace_id: temp_item.Marketplace_id,
+					Supervision_id:  temp_item.Supervision_id,
+				})
+				if err != nil {
+					log.Printf("Failed to insert supervision: %v\n", err)
+					continue
+				}
+			}
+			if len(productResult) > 0 {
+				err = MongoSupervision.StoreProducts(productResult)
+					if err != nil {
+					log.Printf("Failed to insert batch products: %v\n", err)
+					continue
+				}
+    		}
+		}
+		// No more records to fetch
+		break
+	}
+}
+
+func storeMysqlSupervision(){
+	limit := 1000
+	offset := 0
+
+	for {
+		products, err := MongoSupervision.GetAllProducts(offset, limit)
+		if err != nil {
+			fmt.Printf("Error fetching Mongo Supervision: %v\n", err)
+			break
+		}
 		for _, product := range products {
 			// Create a context for the operation
-			ctx := context.Background()
-
-			bsonProduct, err := bson.Marshal(product)
 			if err != nil {
 				log.Printf("Failed to marshal product: %v\n", err)
 				continue
 			}
-			_, err = collection.InsertOne(ctx, bsonProduct)
+			value := mysqlSupervision.Supervision{
+				Name:          product.Title,
+				Link:           product.Link,
+				Image:          product.Image,
+				Price:          product.Price,
+				Sold:           product.Sold,
+				Seller:         product.Seller,
+				Location:       product.Location,
+				Comodity_id:    product.Comodity_id,
+				Marketplace_id: product.Marketplace_id,
+			}
+			err = mysqlSupervision.StoreSupervision(value)
+
 			if err != nil {
-				log.Printf("Failed to insert product %s: %v\n", product.Title, err)
+				log.Printf("Failed to insert batch product %s: %v\n", product.Title, err)
+				continue
+			}
+
+			err = mysqlTempItem.UpdateFlag(product.Supervision_id)
+			if err != nil {
+				log.Printf("Failed to update product Flag %s: %v\n", product.Title, err)
 				continue
 			}
 		}
@@ -64,14 +180,69 @@ func insertData() {
 		// Update offset for next iteration
 		offset += limit
 	}
-	defer mysql.DB.Close()
-
-	defer mongodb.CloseMongoDB()
+	MongoSupervision.DeleteCollection()
+	MongoTempItem.DeleteCollection()
 }
 
-func removeDuplicateData() {
+// Store Data from temp_item from mongodb to temp_item in mysql
+func storeCrawlerData() {
+	limit := 1000
+	offset := 0
+
+	for {
+		products, err := MongoTempItem.GetAllProducts(offset, limit)
+		if err != nil {
+			fmt.Printf("Error fetching Mongo products: %v\n", err)
+			break
+		}
+		for _, product := range products {
+			// Create a context for the operation
+			if err != nil {
+				log.Printf("Failed to marshal product: %v\n", err)
+				continue
+			}
+			value := mysqlTempItem.Product{
+				Title:          product.Title,
+				Link:           product.Link,
+				Image:          product.Image,
+				Price:          product.Price,
+				Rating:         product.Rating,
+				Sold:           product.Sold,
+				Seller:         product.Seller,
+				Location:       product.Location,
+				Comodity_id:    product.Comodity_id,
+				Keyword_id:     product.Keyword_id,
+				Marketplace_id: product.Marketplace_id,
+				User_id: 		product.User_id,
+			}
+			err = mysqlTempItem.StoreProduct(value)
+
+			if err != nil {
+				log.Printf("Failed to insert batch product %s: %v\n", product.Title, err)
+				continue
+			}
+		}
+
+		if len(products) == 0 {
+			// No more records to fetch
+			break
+		}
+
+		// Update offset for next iteration
+		offset += limit
+	}
+}
+
+
+// Remove Duplicate Data from products in mongodb
+func removeDuplicateData(collection_name string) {
+	err := godotenv.Load()
 	// Initialize MongoDB client
-	if err := mongodb.InitMongoDB("mongodb://localhost:27017"); err != nil {
+	if err != nil {
+        log.Fatalf("Error loading .env file: %v", err)
+    }
+	uri := "mongodb://" + os.Getenv("DB_MONGO_HOST") + ":" + os.Getenv("DB_MONGO_PORT")
+	if err := mongodb.InitMongoDB(uri); err != nil {
 		log.Fatalf("Failed to initialize MongoDB: %v", err)
 	}
 	defer mongodb.CloseMongoDB()
@@ -83,17 +254,16 @@ func removeDuplicateData() {
 	}
 
 	// Specify the database and collection
-	databaseName := "crawler"
-	collectionName := "products"
+	collectionName := collection_name
 
 	// Access the collection
-	collection := client.Database(databaseName).Collection(collectionName)
+	collection := client.Database(os.Getenv("DB_MONGO_DATABASE")).Collection(collectionName)
 
 	// Create an index on the fields to identify duplicates
 	indexOptions := options.Index().SetBackground(true).SetUnique(false)
 	keys := bson.D{
 		{"title", 1},
-		{"marketplace", 1},
+		{"marketplace_id", 1},
 		{"seller", 1},
 	}
 	indexModel := mongo.IndexModel{
@@ -102,7 +272,7 @@ func removeDuplicateData() {
 	}
 
 	// Create the index on the collection
-	_, err := collection.Indexes().CreateOne(context.Background(), indexModel)
+	_, err = collection.Indexes().CreateOne(context.Background(), indexModel)
 	if err != nil {
 		log.Fatalf("Failed to create index: %v", err)
 	}
@@ -113,7 +283,7 @@ func removeDuplicateData() {
 			"$group": bson.M{
 				"_id": bson.M{
 					"title":       "$title",
-					"marketplace": "$marketplace",
+					"marketplace_id": "$marketplace_id",
 					"seller":      "$seller",
 				},
 				"duplicates": bson.M{"$addToSet": "$_id"},

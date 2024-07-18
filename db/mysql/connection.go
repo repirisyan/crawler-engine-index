@@ -36,6 +36,4 @@ func Init() {
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	fmt.Println("Successfully connected to the database!")
 }
