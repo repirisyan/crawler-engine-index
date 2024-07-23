@@ -26,12 +26,19 @@ func main() {
 	mysql.Init()
 	defer mysql.DB.Close()
 	removeDuplicateData("temp_items")
+	fmt.Printf("Remove Duplication")
 	storeCrawlerData()
+	fmt.Printf("Store Temp Data")
 	storeSupervision()
+	fmt.Printf("Store Supervision Mongo")
 	removeDuplicateData("supervisions")
+	fmt.Printf("Remove Duplicate Supervision")
 	storeIndexData()
+	fmt.Printf("Store Index Data")
 	removeDuplicateData("products")
+	fmt.Printf("Remove Duplicate Index Data")
 	storeMysqlSupervision()
+	fmt.Printf("Store Mysql Supervision Data")
 }
 
 // Store Data from temp_item to products in mongodb
@@ -80,8 +87,6 @@ func storeIndexData() {
 		// Update offset for next iteration
 		offset += limit
 	}
-
-	defer mongodb.CloseMongoDB()
 }
 
 // Store Data from temp_item to supervisions in mongodb based on search key
@@ -92,7 +97,7 @@ func storeSupervision(){
 			fmt.Printf("Error fetching supervision List: %v\n", err)
 			break
 		}
-		fmt.Printf("Supervision List: %v\n", supervisionList)
+
 		for _, svl := range supervisionList {
 			var productResult []interface{}
 			temp_items, err := mysqlTempItem.GetAllData(svl.Name)
@@ -112,6 +117,7 @@ func storeSupervision(){
 					Comodity_id:    temp_item.Comodity_id,
 					Marketplace_id: temp_item.Marketplace_id,
 					Supervision_id:  temp_item.Supervision_id,
+					Created_at: temp_item.Created_at,
 				})
 				if err != nil {
 					log.Printf("Failed to insert supervision: %v\n", err)
@@ -148,7 +154,7 @@ func storeMysqlSupervision(){
 				continue
 			}
 			value := mysqlSupervision.Supervision{
-				Name:          product.Title,
+				Name:           product.Title,
 				Link:           product.Link,
 				Image:          product.Image,
 				Price:          product.Price,
@@ -157,6 +163,7 @@ func storeMysqlSupervision(){
 				Location:       product.Location,
 				Comodity_id:    product.Comodity_id,
 				Marketplace_id: product.Marketplace_id,
+				Created_at: product.Created_at,
 			}
 			err = mysqlSupervision.StoreSupervision(value)
 
@@ -165,7 +172,7 @@ func storeMysqlSupervision(){
 				continue
 			}
 
-			err = mysqlTempItem.UpdateFlag(product.Supervision_id)
+			err = mysqlTempItem.UpdateFlag(product.Title, product.Seller, product.Marketplace_id)
 			if err != nil {
 				log.Printf("Failed to update product Flag %s: %v\n", product.Title, err)
 				continue
@@ -197,10 +204,6 @@ func storeCrawlerData() {
 		}
 		for _, product := range products {
 			// Create a context for the operation
-			if err != nil {
-				log.Printf("Failed to marshal product: %v\n", err)
-				continue
-			}
 			value := mysqlTempItem.Product{
 				Title:          product.Title,
 				Link:           product.Link,
@@ -214,6 +217,7 @@ func storeCrawlerData() {
 				Keyword_id:     product.Keyword_id,
 				Marketplace_id: product.Marketplace_id,
 				User_id: 		product.User_id,
+				Created_at: 	product.Created_at,
 			}
 			err = mysqlTempItem.StoreProduct(value)
 
@@ -245,7 +249,6 @@ func removeDuplicateData(collection_name string) {
 	if err := mongodb.InitMongoDB(uri); err != nil {
 		log.Fatalf("Failed to initialize MongoDB: %v", err)
 	}
-	defer mongodb.CloseMongoDB()
 
 	// Get MongoDB client instance
 	client := mongodb.GetMongoClient()
@@ -338,6 +341,4 @@ func removeDuplicateData(collection_name string) {
 	if err := cursor.Err(); err != nil {
 		log.Fatalf("Cursor error: %v", err)
 	}
-
-	log.Println("Duplicate removal process completed")
 }

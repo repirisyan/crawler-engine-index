@@ -24,7 +24,7 @@ type IndexProduct struct {
 	Comodity    string  `bson:"comodity"`
 	Keyword     string  `bson:"keyword"`
 	Marketplace string  `bson:"marketplace"`
-	Created_at  string  `bson:"created_at"`
+	Created_at   string `bson:"created_at"`
 }
 
 var client *mongo.Client

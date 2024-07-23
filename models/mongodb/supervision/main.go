@@ -25,6 +25,7 @@ type Product struct {
 	Comodity_id uint64  `bson:"comodity_id"`
 	Marketplace_id uint64  `bson:"marketplace_id"`
 	Supervision_id  uint64  `bson:"id"`
+	Created_at  string  `bson:"created_at"`
 }
 
 var client *mongo.Client
