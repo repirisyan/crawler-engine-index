@@ -56,6 +56,8 @@ func storeIndexData() {
 		for _, p := range products {
 			productResult = append(productResult, MongoProduct.IndexProduct{
 				Title:       p.Title,
+				Description: p.Description,
+				Category: 	 p.Category,
 				Link:        p.Link,
 				Image:       p.Image,
 				Price:       p.Price,

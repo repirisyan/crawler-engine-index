@@ -21,7 +21,9 @@ type Product struct {
 	Price          uint64  
 	Rating         float64 
 	Sold           uint64  
-	Seller         string  
+	Seller         string
+	Description    *string
+	Category	   *string    
 	Location       string  
 	Comodity       string  
 	Comodity_id    uint64  

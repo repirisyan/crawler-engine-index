@@ -15,6 +15,8 @@ import (
 type IndexProduct struct {
 	Title       string  `bson:"title"`
 	Link        string  `bson:"link"`
+	Description *string  `bson:"description"`
+	Category    *string  `bson:"category"`
 	Image       *string `bson:"image"`
 	Price       uint64  `bson:"price"`
 	Rating      float64 `bson:"rating"`
