@@ -9,7 +9,7 @@ type Supervision struct {
 }
 
 func GetAllData() ([]Supervision, error) {
-	query := "SELECT name from supervision_lists"
+	query := "SELECT name from supervision_lists WHERE status = 1"
 	rows, err := mysql.DB.Query(query)
 	if err != nil {
 		return nil, err
