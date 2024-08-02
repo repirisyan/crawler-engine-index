@@ -24,6 +24,9 @@ type IndexProduct struct {
 	Seller      string  `bson:"seller"`
 	Location    string  `bson:"location"`
 	Comodity    string  `bson:"comodity"`
+	Sub_comodity       *string `bson:"Sub_comodity"`
+	Second_level_sub_comodity       *string `bson:"Second_level_sub_comodity"`
+	Third_level_sub_comodity       *string `bson:"Third_level_sub_comodity"`
 	Keyword     string  `bson:"keyword"`
 	Marketplace string  `bson:"marketplace"`
 	Created_at   string `bson:"created_at"`

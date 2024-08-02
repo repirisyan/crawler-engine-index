@@ -22,7 +22,7 @@ type Product struct {
 	Sold        uint64  `bson:"sold"`
 	Seller      string  `bson:"seller"`
 	Location    string  `bson:"location"`
-	Comodity_id uint64  `bson:"comodity_id"`
+	Keyword_id uint64  `bson:"keyword_id"`
 	Marketplace_id uint64  `bson:"marketplace_id"`
 	Supervision_id  uint64  `bson:"id"`
 	Created_at  string  `bson:"created_at"`

@@ -15,7 +15,6 @@ type Product struct {
 	Sold           uint64 
 	Seller         string 
 	Location       string 
-	Comodity_id    uint64 
 	Keyword_id     uint64 
 	Marketplace_id uint64
 	User_id 	   uint64  
@@ -31,13 +30,13 @@ type Supervision struct {
 	Sold           uint64
 	Seller         string
 	Location       string
-	Comodity_id    uint64
+	Keyword_id     uint64
 	Marketplace_id uint64
 	Created_at     string
 }
 
 func GetAllProduct(offset, limit int, search string) ([]Supervision, error) {
-	query := "SELECT id, title, link, image, price, sold, seller, location, comodity_id, marketplace_id from temp_items WHERE title LIKE ? LIMIT ?, ?"
+	query := "SELECT id, title, link, image, price, sold, seller, location, keyword_id, marketplace_id from temp_items WHERE title LIKE ? LIMIT ?, ?"
 	likeSearch := "%" + search + "%"
 	rows, err := mysql.DB.Query(query,likeSearch, offset, limit)
 	if err != nil {
@@ -48,7 +47,7 @@ func GetAllProduct(offset, limit int, search string) ([]Supervision, error) {
 
 	for rows.Next() {
 		var product Supervision
-		err := rows.Scan(&product.Supervision_id,&product.Title, &product.Link, &product.Image, &product.Price, &product.Sold, &product.Seller, &product.Location, &product.Comodity_id, &product.Marketplace_id)
+		err := rows.Scan(&product.Supervision_id,&product.Title, &product.Link, &product.Image, &product.Price, &product.Sold, &product.Seller, &product.Location, &product.Keyword_id, &product.Marketplace_id)
 		if err != nil {
 			return nil, err
 		}
@@ -63,7 +62,7 @@ func GetAllProduct(offset, limit int, search string) ([]Supervision, error) {
 }
 
 func GetAllData(search string) ([]Supervision, error) {
-	query := "SELECT title, link, image, price, sold, seller, location, comodity_id, marketplace_id, created_at from temp_items WHERE title LIKE ?"
+	query := "SELECT title, link, image, price, sold, seller, location, keyword_id, marketplace_id, created_at from temp_items WHERE title LIKE ?"
 	likeSearch := "%" + search + "%"
 	rows, err := mysql.DB.Query(query,likeSearch)
 	if err != nil {
@@ -74,7 +73,7 @@ func GetAllData(search string) ([]Supervision, error) {
 
 	for rows.Next() {
 		var product Supervision
-		err := rows.Scan(&product.Title, &product.Link, &product.Image, &product.Price, &product.Sold, &product.Seller, &product.Location, &product.Comodity_id, &product.Marketplace_id,&product.Created_at)
+		err := rows.Scan(&product.Title, &product.Link, &product.Image, &product.Price, &product.Sold, &product.Seller, &product.Location, &product.Keyword_id, &product.Marketplace_id,&product.Created_at)
 		if err != nil {
 			return nil, err
 		}
@@ -90,8 +89,8 @@ func GetAllData(search string) ([]Supervision, error) {
 
 // StoreProduct inserts a product into the database
 func StoreProduct(product Product) error {
-	query := "INSERT INTO temp_items (title, link, image, price, rating, sold, seller, location, comodity_id, keyword_id, marketplace_id, user_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-	_, err := mysql.DB.Exec(query, product.Title, product.Link, product.Image, product.Price, product.Rating, product.Sold, product.Seller, product.Location, product.Comodity_id, product.Keyword_id, product.Marketplace_id, product.User_id, product.Created_at)
+	query := "INSERT INTO temp_items (title, link, image, price, rating, sold, seller, location, keyword_id, marketplace_id, user_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+	_, err := mysql.DB.Exec(query, product.Title, product.Link, product.Image, product.Price, product.Rating, product.Sold, product.Seller, product.Location, product.Keyword_id, product.Marketplace_id, product.User_id, product.Created_at)
 	if err != nil {
 		return fmt.Errorf("error inserting product: %v", err)
 	}

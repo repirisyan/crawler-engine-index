@@ -26,7 +26,10 @@ type Product struct {
 	Category	   *string    
 	Location       string  
 	Comodity       string  
-	Comodity_id    uint64  
+	Comodity_id    uint64
+	Sub_comodity   *string      
+	Second_level_sub_comodity	   *string    
+	Third_level_sub_comodity	   *string    
 	Keyword        string  
 	Keyword_id     uint64  
 	Marketplace    string  
