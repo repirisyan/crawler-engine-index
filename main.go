@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"sync"
 
 	"crawler-index/db/mongodb"
 	"crawler-index/db/mysql"
@@ -327,23 +326,20 @@ func removeDuplicateData(collection_name string) {
 		// Get duplicates to delete
 		duplicates := result.Duplicates
 
-		var wg sync.WaitGroup
+		// Remove all duplicates except one
 		for i := 1; i < len(duplicates); i++ {
-			wg.Add(1)
-			go func(id interface{}) {
-				defer wg.Done()
-				idToDelete, ok := id.(primitive.ObjectID)
-				if !ok {
-					log.Printf("Failed to convert to ObjectID: %+v", id)
-					return
-				}
-				_, err := collection.DeleteOne(context.Background(), bson.M{"_id": idToDelete})
-				if err != nil {
-					log.Printf("Failed to delete duplicate: %v", err)
-				}
-			}(duplicates[i])
+			idToDelete, ok := duplicates[i].(primitive.ObjectID) // Assuming _id is ObjectID, adjust as per your schema
+			if !ok {
+				log.Printf("Failed to convert to ObjectID: %+v", duplicates[i])
+				continue
+			}
+
+			_, err := collection.DeleteOne(context.Background(), bson.M{"_id": idToDelete})
+			if err != nil {
+				log.Printf("Failed to delete duplicate: %v", err)
+				continue
+			}
 		}
-		wg.Wait()
 	}
 
 	if err := cursor.Err(); err != nil {
