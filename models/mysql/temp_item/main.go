@@ -89,7 +89,7 @@ func GetAllData(search string) ([]Supervision, error) {
 
 // StoreProduct inserts a product into the database
 func StoreProduct(product Product) error {
-	query := "INSERT INTO temp_items (title, link, image, price, rating, sold, seller, location, keyword_id, marketplace_id, user_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+	query := "INSERT INTO temp_items (title, link, image, price, rating, sold, seller, location, keyword_id, marketplace_id, user_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 	_, err := mysql.DB.Exec(query, product.Title, product.Link, product.Image, product.Price, product.Rating, product.Sold, product.Seller, product.Location, product.Keyword_id, product.Marketplace_id, product.User_id, product.Created_at)
 	if err != nil {
 		return fmt.Errorf("error inserting product: %v", err)
