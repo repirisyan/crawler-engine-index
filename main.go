@@ -27,19 +27,12 @@ func main() {
 	mysql.Init()
 	defer mysql.DB.Close()
 	removeDuplicateData("temp_items")
-	fmt.Printf("Remove Duplication")
 	storeCrawlerData()
-	fmt.Printf("Store Temp Data")
 	storeSupervision()
-	// fmt.Printf("Store Supervision Mongo")
-	// removeDuplicateData("supervisions")
-	// fmt.Printf("Remove Duplicate Supervision")
-	// storeIndexData()
-	// fmt.Printf("Store Index Data")
-	// removeDuplicateData("products")
-	// fmt.Printf("Remove Duplicate Index Data")
-	// storeMysqlSupervision()
-	// fmt.Printf("Store Mysql Supervision Data")
+	removeDuplicateData("supervisions")
+	storeIndexData()
+	removeDuplicateData("products")
+	storeMysqlSupervision()
 }
 
 // Store Data from temp_item to products in mongodb
@@ -144,59 +137,73 @@ func storeSupervision(){
 }
 
 // Optimized
-func storeMysqlSupervision(){
-	limit := 1000
-	offset := 0
+func storeMysqlSupervision() {
+    limit := 1000
+    offset := 0
 
-	for {
-		products, err := MongoSupervision.GetAllProducts(offset, limit)
-		if err != nil {
-			fmt.Printf("Error fetching Mongo Supervision: %v\n", err)
-			break
-		}
-		for _, product := range products {
-			// Create a context for the operation
-			if err != nil {
-				log.Printf("Failed to marshal product: %v\n", err)
-				continue
-			}
-			value := mysqlSupervision.Supervision{
-				Name:           product.Title,
-				Link:           product.Link,
-				Image:          product.Image,
-				Price:          product.Price,
-				Sold:           product.Sold,
-				Seller:         product.Seller,
-				Location:       product.Location,
-				Keyword_id:    product.Keyword_id,
-				Marketplace_id: product.Marketplace_id,
-				Created_at: product.Created_at,
-			}
-			err = mysqlSupervision.StoreSupervisions(value)
+    for {
+        products, err := MongoSupervision.GetAllProducts(offset, limit)
+        if err != nil {
+            fmt.Printf("Error fetching Mongo Supervision: %v\n", err)
+            break
+        }
 
-			if err != nil {
-				log.Printf("Failed to insert batch product %s: %v\n", product.Title, err)
-				continue
-			}
+        if len(products) == 0 {
+            // No more records to fetch
+            break
+        }
 
-			err = mysqlTempItem.UpdateFlag(product.Title, product.Seller, product.Marketplace_id)
-			if err != nil {
-				log.Printf("Failed to update product Flag %s: %v\n", product.Title, err)
-				continue
-			}
-		}
+        var supervisions []mysqlSupervision.Supervision
+        var updateFlags []mysqlTempItem.FlagUpdate
 
-		if len(products) == 0 {
-			// No more records to fetch
-			break
-		}
+        for _, product := range products {
+            value := mysqlSupervision.Supervision{
+                Name:           product.Title,
+                Link:           product.Link,
+                Image:          product.Image,
+                Price:          product.Price,
+                Sold:           product.Sold,
+                Seller:         product.Seller,
+                Location:       product.Location,
+                Keyword_id:     product.Keyword_id,
+                Marketplace_id: product.Marketplace_id,
+                Created_at:     product.Created_at,
+            }
+            supervisions = append(supervisions, value)
 
-		// Update offset for next iteration
-		offset += limit
-	}
-	// MongoSupervision.DeleteCollection()
-	// MongoTempItem.DeleteCollection()
+            flagUpdate := mysqlTempItem.FlagUpdate{
+                Title:          product.Title,
+                Seller:         product.Seller,
+                Marketplace_id: product.Marketplace_id,
+            }
+            updateFlags = append(updateFlags, flagUpdate)
+        }
+
+        if len(supervisions) > 0 {
+            err = mysqlSupervision.StoreSupervisions(supervisions)
+            if err != nil {
+                log.Printf("Failed to insert batch products: %v\n", err)
+                continue
+            }
+        }
+
+        if len(updateFlags) > 0 {
+            err = mysqlTempItem.UpdateFlags(updateFlags)
+            if err != nil {
+                log.Printf("Failed to update product flags: %v\n", err)
+                continue
+            }
+        }
+
+        // Update offset for next iteration
+        offset += limit
+    }
+
+    // Optionally delete collections if necessary
+    // MongoSupervision.DeleteCollection()
+    // MongoTempItem.DeleteCollection()
 }
+
 
 // Store Data from temp_item from mongodb to temp_item in mysql
 // Optimized
@@ -247,7 +254,6 @@ func storeCrawlerData() {
         offset += limit
     }
 }
-
 
 
 // Remove Duplicate Data from products in mongodb

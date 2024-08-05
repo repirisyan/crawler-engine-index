@@ -35,6 +35,12 @@ type Supervision struct {
 	Created_at     string
 }
 
+type FlagUpdate struct {
+	Title string
+	Seller string
+	Marketplace_id uint64
+}
+
 func GetAllProduct(offset, limit int, search string) ([]Supervision, error) {
 	query := "SELECT id, title, link, image, price, sold, seller, location, keyword_id, marketplace_id from temp_items WHERE title LIKE ? LIMIT ?, ?"
 	likeSearch := "%" + search + "%"
@@ -113,11 +119,28 @@ func StoreProducts(products []Product) error {
     return nil
 }
 
-func UpdateFlag(title string,seller string, marketplace_id uint64) error {
-	query := "UPDATE temp_items SET FLAG = 1 WHERE title = ? AND seller = ? AND marketplace_id = ?"
-	_, err := mysql.DB.Exec(query, title, seller, marketplace_id)
-	if err != nil {
-		return fmt.Errorf("error update product: %v", err)
-	}
-	return nil
+func UpdateFlags(flagUpdates []FlagUpdate) error {
+	query := "UPDATE temp_items SET flag = 1 WHERE (Title, Seller, Marketplace_id) IN ("
+    values := []interface{}{}
+
+    for _, update := range flagUpdates {
+        query += "(?, ?, ?),"
+        values = append(values, update.Title, update.Seller, update.Marketplace_id)
+    }
+
+    query = query[:len(query)-1] // Remove the trailing comma
+    query += ")"
+
+    stmt, err := mysql.DB.Prepare(query)
+    if err != nil {
+        return err
+    }
+    defer stmt.Close()
+
+    _, err = stmt.Exec(values...)
+    if err != nil {
+        return err
+    }
+
+    return nil
 }
