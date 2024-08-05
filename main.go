@@ -31,15 +31,15 @@ func main() {
 	storeCrawlerData()
 	fmt.Printf("Store Temp Data")
 	storeSupervision()
-	fmt.Printf("Store Supervision Mongo")
-	removeDuplicateData("supervisions")
-	fmt.Printf("Remove Duplicate Supervision")
-	storeIndexData()
-	fmt.Printf("Store Index Data")
-	removeDuplicateData("products")
-	fmt.Printf("Remove Duplicate Index Data")
-	storeMysqlSupervision()
-	fmt.Printf("Store Mysql Supervision Data")
+	// fmt.Printf("Store Supervision Mongo")
+	// removeDuplicateData("supervisions")
+	// fmt.Printf("Remove Duplicate Supervision")
+	// storeIndexData()
+	// fmt.Printf("Store Index Data")
+	// removeDuplicateData("products")
+	// fmt.Printf("Remove Duplicate Index Data")
+	// storeMysqlSupervision()
+	// fmt.Printf("Store Mysql Supervision Data")
 }
 
 // Store Data from temp_item to products in mongodb
@@ -143,6 +143,7 @@ func storeSupervision(){
 	}
 }
 
+// Optimized
 func storeMysqlSupervision(){
 	limit := 1000
 	offset := 0
@@ -171,7 +172,7 @@ func storeMysqlSupervision(){
 				Marketplace_id: product.Marketplace_id,
 				Created_at: product.Created_at,
 			}
-			err = mysqlSupervision.StoreSupervision(value)
+			err = mysqlSupervision.StoreSupervisions(value)
 
 			if err != nil {
 				log.Printf("Failed to insert batch product %s: %v\n", product.Title, err)
@@ -193,54 +194,60 @@ func storeMysqlSupervision(){
 		// Update offset for next iteration
 		offset += limit
 	}
-	MongoSupervision.DeleteCollection()
-	MongoTempItem.DeleteCollection()
+	// MongoSupervision.DeleteCollection()
+	// MongoTempItem.DeleteCollection()
 }
 
 // Store Data from temp_item from mongodb to temp_item in mysql
+// Optimized
 func storeCrawlerData() {
-	limit := 1000
-	offset := 0
+    limit := 1000
+    offset := 0
 
-	for {
-		products, err := MongoTempItem.GetAllProducts(offset, limit)
-		if err != nil {
-			fmt.Printf("Error fetching Mongo products: %v\n", err)
-			break
-		}
-		for _, product := range products {
-			// Create a context for the operation
-			value := mysqlTempItem.Product{
-				Title:          product.Title,
-				Link:           product.Link,
-				Image:          product.Image,
-				Price:          product.Price,
-				Rating:         product.Rating,
-				Sold:           product.Sold,
-				Seller:         product.Seller,
-				Location:       product.Location,
-				Keyword_id:     product.Keyword_id,
-				Marketplace_id: product.Marketplace_id,
-				User_id: 		product.User_id,
-				Created_at: 	product.Created_at,
-			}
-			err = mysqlTempItem.StoreProduct(value)
+    for {
+        products, err := MongoTempItem.GetAllProducts(offset, limit)
+        if err != nil {
+            fmt.Printf("Error fetching Mongo products: %v\n", err)
+            break
+        }
 
-			if err != nil {
-				log.Printf("Failed to insert batch product %s: %v\n", product.Title, err)
-				continue
-			}
-		}
+        if len(products) == 0 {
+            // No more records to fetch
+            break
+        }
 
-		if len(products) == 0 {
-			// No more records to fetch
-			break
-		}
+        var batch []mysqlTempItem.Product
+        for _, product := range products {
+            value := mysqlTempItem.Product{
+                Title:          product.Title,
+                Link:           product.Link,
+                Image:          product.Image,
+                Price:          product.Price,
+                Rating:         product.Rating,
+                Sold:           product.Sold,
+                Seller:         product.Seller,
+                Location:       product.Location,
+                Keyword_id:     product.Keyword_id,
+                Marketplace_id: product.Marketplace_id,
+                User_id:        product.User_id,
+                Created_at:     product.Created_at,
+            }
+            batch = append(batch, value)
+        }
 
-		// Update offset for next iteration
-		offset += limit
-	}
+        if len(batch) > 0 {
+            err = mysqlTempItem.StoreProducts(batch)  // Assuming StoreProducts handles batch insert
+            if err != nil {
+                log.Printf("Failed to insert batch: %v\n", err)
+                continue
+            }
+        }
+
+        // Update offset for next iteration
+        offset += limit
+    }
 }
+
 
 
 // Remove Duplicate Data from products in mongodb
