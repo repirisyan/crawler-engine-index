@@ -33,6 +33,7 @@ func main() {
 	storeIndexData()
 	removeDuplicateData("products")
 	storeMysqlSupervision()
+	fmt.Printf("Cleaning Complete")
 }
 
 // Store Data from temp_item to products in mongodb
@@ -200,8 +201,8 @@ func storeMysqlSupervision() {
     }
 
     // Optionally delete collections if necessary
-    // MongoSupervision.DeleteCollection()
-    // MongoTempItem.DeleteCollection()
+    MongoSupervision.DeleteCollection()
+    MongoTempItem.DeleteCollection()
 }
 
 
