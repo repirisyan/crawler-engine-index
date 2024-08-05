@@ -3,7 +3,6 @@ package mysqlTempItem
 
 import (
 	"crawler-index/db/mysql"
-	"fmt"
 )
 
 type Product struct {
