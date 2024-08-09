@@ -12,9 +12,7 @@ import (
 	"crawler-index/models/mongodb/product"
 	"crawler-index/models/mongodb/supervision"
 	"crawler-index/models/mongodb/temp_item"
-	"crawler-index/models/mysql/supervision"
 	"crawler-index/models/mysql/supervision_list"
-	"crawler-index/models/mysql/temp_item"
 
 	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/bson"
@@ -27,12 +25,12 @@ func main() {
 	mysql.Init()
 	defer mysql.DB.Close()
 	removeDuplicateData("temp_items")
-	storeCrawlerData()
+	// storeCrawlerData()
 	storeSupervision()
 	removeDuplicateData("supervisions")
 	storeIndexData()
 	removeDuplicateData("products")
-	storeMysqlSupervision()
+	// storeMysqlSupervision()
 	fmt.Printf("Cleaning Complete")
 }
 
@@ -52,7 +50,7 @@ func storeIndexData() {
 			productResult = append(productResult, MongoProduct.IndexProduct{
 				Title:       p.Title,
 				Description: p.Description,
-				Category: 	 p.Category,
+				Category:    p.Category,
 				Link:        p.Link,
 				Image:       p.Image,
 				Price:       p.Price,
@@ -61,9 +59,6 @@ func storeIndexData() {
 				Seller:      p.Seller,
 				Location:    p.Location,
 				Comodity:    p.Comodity,
-				Sub_comodity: p.Sub_comodity,
-				Second_level_sub_comodity: p.Second_level_sub_comodity,
-				Third_level_sub_comodity: p.Third_level_sub_comodity,
 				Keyword:     p.Keyword,
 				Marketplace: p.Marketplace,
 				Created_at:  p.Created_at,
@@ -72,12 +67,11 @@ func storeIndexData() {
 
 		if len(productResult) > 0 {
 			err = MongoProduct.StoreProducts(productResult)
-				if err != nil {
+			if err != nil {
 				log.Printf("Failed to insert batch products: %v\n", err)
 				continue
 			}
-    	}
-		
+		}
 
 		if len(products) == 0 {
 			// No more records to fetch
@@ -89,8 +83,8 @@ func storeIndexData() {
 	}
 }
 
-// Store Data from temp_item to supervisions in mongodb based on search key
-func storeSupervision(){
+// Store Data from temp_item to supervisions in mongodb based on supervision list in mysql
+func storeSupervision() {
 	for {
 		supervisionList, err := mysqlSupervisionList.GetAllData()
 		if err != nil {
@@ -100,170 +94,53 @@ func storeSupervision(){
 
 		for _, svl := range supervisionList {
 			var productResult []interface{}
-			temp_items, err := mysqlTempItem.GetAllData(svl.Name)
+			products, err := MongoTempItem.SearchProduct(svl.Name)
 			if err != nil {
 				fmt.Printf("Error fetching Temp Item: %v\n", err)
 				break
 			}
-			for _, temp_item := range temp_items {
+			for _, product := range products {
 				productResult = append(productResult, MongoSupervision.Product{
-					Title:       temp_item.Title,
-					Link:        temp_item.Link,
-					Image:       temp_item.Image,
-					Price:       temp_item.Price,
-					Sold:        temp_item.Sold,
-					Seller:      temp_item.Seller,
-					Location:    temp_item.Location,
-					Keyword_id:    temp_item.Keyword_id,
-					Marketplace_id: temp_item.Marketplace_id,
-					Supervision_id:  temp_item.Supervision_id,
-					Created_at: temp_item.Created_at,
+					Title:          product.Title,
+					Link:           product.Link,
+					Image:          product.Image,
+					Price:          product.Price,
+					Sold:           product.Sold,
+					Seller:         product.Seller,
+					Description:    product.Description,
+					Category:       product.Category,
+					Location:       product.Location,
+					Comodity:       product.Comodity,
+					Comodity_id:    product.Comodity_id,
+					Keyword:        product.Keyword,
+					Keyword_id:     product.Keyword_id,
+					Marketplace:    product.Marketplace,
+					Marketplace_id: product.Marketplace_id,
+					User_id:        product.User_id,
+					Published_at:   product.Published_at,
+					Created_at:     product.Created_at,
 				})
-				if err != nil {
-					log.Printf("Failed to insert supervision: %v\n", err)
-					continue
-				}
 			}
 			if len(productResult) > 0 {
 				err = MongoSupervision.StoreProducts(productResult)
-					if err != nil {
+				if err != nil {
 					log.Printf("Failed to insert batch products: %v\n", err)
 					continue
 				}
-    		}
+			}
 		}
 		// No more records to fetch
 		break
 	}
 }
 
-// Optimized
-func storeMysqlSupervision() {
-    limit := 1000
-    offset := 0
-
-    for {
-        products, err := MongoSupervision.GetAllProducts(offset, limit)
-        if err != nil {
-            fmt.Printf("Error fetching Mongo Supervision: %v\n", err)
-            break
-        }
-
-        if len(products) == 0 {
-            // No more records to fetch
-            break
-        }
-
-        var supervisions []mysqlSupervision.Supervision
-        var updateFlags []mysqlTempItem.FlagUpdate
-
-        for _, product := range products {
-            value := mysqlSupervision.Supervision{
-                Name:           product.Title,
-                Link:           product.Link,
-                Image:          product.Image,
-                Price:          product.Price,
-                Sold:           product.Sold,
-                Seller:         product.Seller,
-                Location:       product.Location,
-                Keyword_id:     product.Keyword_id,
-                Marketplace_id: product.Marketplace_id,
-                Created_at:     product.Created_at,
-            }
-            supervisions = append(supervisions, value)
-
-            flagUpdate := mysqlTempItem.FlagUpdate{
-                Title:          product.Title,
-                Seller:         product.Seller,
-                Marketplace_id: product.Marketplace_id,
-            }
-            updateFlags = append(updateFlags, flagUpdate)
-        }
-
-        if len(supervisions) > 0 {
-            err = mysqlSupervision.StoreSupervisions(supervisions)
-            if err != nil {
-                log.Printf("Failed to insert batch products: %v\n", err)
-                continue
-            }
-        }
-
-        if len(updateFlags) > 0 {
-            err = mysqlTempItem.UpdateFlags(updateFlags)
-            if err != nil {
-                log.Printf("Failed to update product flags: %v\n", err)
-                continue
-            }
-        }
-
-        // Update offset for next iteration
-        offset += limit
-    }
-
-    // Optionally delete collections if necessary
-    MongoSupervision.DeleteCollection()
-    MongoTempItem.DeleteCollection()
-}
-
-
-// Store Data from temp_item from mongodb to temp_item in mysql
-// Optimized
-func storeCrawlerData() {
-    limit := 1000
-    offset := 0
-
-    for {
-        products, err := MongoTempItem.GetAllProducts(offset, limit)
-        if err != nil {
-            fmt.Printf("Error fetching Mongo products: %v\n", err)
-            break
-        }
-
-        if len(products) == 0 {
-            // No more records to fetch
-            break
-        }
-
-        var batch []mysqlTempItem.Product
-        for _, product := range products {
-            value := mysqlTempItem.Product{
-                Title:          product.Title,
-                Link:           product.Link,
-                Image:          product.Image,
-                Price:          product.Price,
-                Rating:         product.Rating,
-                Sold:           product.Sold,
-                Seller:         product.Seller,
-                Location:       product.Location,
-                Keyword_id:     product.Keyword_id,
-                Marketplace_id: product.Marketplace_id,
-                User_id:        product.User_id,
-                Created_at:     product.Created_at,
-            }
-            batch = append(batch, value)
-        }
-
-        if len(batch) > 0 {
-            err = mysqlTempItem.StoreProducts(batch)  // Assuming StoreProducts handles batch insert
-            if err != nil {
-                log.Printf("Failed to insert batch: %v\n", err)
-                continue
-            }
-        }
-
-        // Update offset for next iteration
-        offset += limit
-    }
-}
-
-
 // Remove Duplicate Data from products in mongodb
 func removeDuplicateData(collection_name string) {
 	err := godotenv.Load()
 	// Initialize MongoDB client
 	if err != nil {
-        log.Fatalf("Error loading .env file: %v", err)
-    }
+		log.Fatalf("Error loading .env file: %v", err)
+	}
 	uri := "mongodb://" + os.Getenv("DB_MONGO_HOST") + ":" + os.Getenv("DB_MONGO_PORT")
 	if err := mongodb.InitMongoDB(uri); err != nil {
 		log.Fatalf("Failed to initialize MongoDB: %v", err)
@@ -282,10 +159,12 @@ func removeDuplicateData(collection_name string) {
 	collection := client.Database(os.Getenv("DB_MONGO_DATABASE")).Collection(collectionName)
 
 	// Create an index on the fields to identify duplicates
-	indexOptions := options.Index().SetBackground(true).SetUnique(false)
+	indexOptions := options.Index().SetUnique(false)
 	keys := bson.D{
 		{"title", 1},
 		{"marketplace_id", 1},
+		{"comodity_id", 1},
+		{"created_at", 1},
 		{"seller", 1},
 	}
 	indexModel := mongo.IndexModel{
@@ -304,9 +183,11 @@ func removeDuplicateData(collection_name string) {
 		{
 			"$group": bson.M{
 				"_id": bson.M{
-					"title":       "$title",
+					"title":          "$title",
 					"marketplace_id": "$marketplace_id",
-					"seller":      "$seller",
+					"seller":         "$seller",
+					"comodity_id":    "$comodity_id",
+					"created_at":    "$created_at",
 				},
 				"duplicates": bson.M{"$addToSet": "$_id"},
 				"count":      bson.M{"$sum": 1},

@@ -3,11 +3,11 @@ package MongoTempItem
 
 import (
 	"context"
+	"crawler-index/db/mongodb"
 	"fmt"
+	"github.com/joho/godotenv"
 	"log"
 	"os"
-	"github.com/joho/godotenv"
-	"crawler-index/db/mongodb"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -15,27 +15,45 @@ import (
 )
 
 type Product struct {
-	Title          string  
-	Link           string  
-	Image          *string 
-	Price          uint64  
-	Rating         float64 
-	Sold           uint64  
-	Seller         string
-	Description    *string
-	Category	   *string    
-	Location       string  
-	Comodity       string  
+	Title string
+	Link  string
+	Image *[]string
+	Price struct {
+		Price          uint64
+		Original_price uint64
+		Discount       *uint32
+	}
+	Rating struct {
+		Rating float64
+		Count  uint64
+	}
+	Sold   uint64
+	Seller struct {
+		Name string
+		Url  *string
+	}
+	Description *string
+	Category    *string
+	Location    struct {
+		Country  *string
+		Province *string
+		City     *string
+		District *string
+	}
+	Comodity struct {
+		Comodity                  string
+		Sub_comodity              *string
+		Second_level_sub_comodity *string
+		Third_level_sub_comodity  *string
+	}
 	Comodity_id    uint64
-	Sub_comodity   *string      
-	Second_level_sub_comodity	   *string    
-	Third_level_sub_comodity	   *string    
-	Keyword        string  
-	Keyword_id     uint64  
-	Marketplace    string  
+	Keyword        string
+	Keyword_id     uint64
+	Marketplace    string
 	Marketplace_id uint64
-	User_id 	   uint64    
-	Created_at     string  
+	User_id        uint64
+	Published_at   *string
+	Created_at     string
 }
 
 var client *mongo.Client
@@ -45,8 +63,8 @@ func init() {
 	// Connect to MongoDB
 	err := godotenv.Load()
 	if err != nil {
-        log.Fatalf("Error loading .env file: %v", err)
-    }
+		log.Fatalf("Error loading .env file: %v", err)
+	}
 
 	mongoHost := os.Getenv("DB_MONGO_HOST")
 	mongoPort := os.Getenv("DB_MONGO_PORT")
@@ -98,12 +116,43 @@ func GetAllProducts(offset, limit int) ([]Product, error) {
 	return products, nil
 }
 
-func DeleteCollection(){
-	// Drop the collection
-    err := collection.Drop(context.TODO())
-    if err != nil {
-        log.Fatalf("Failed to drop collection: %v", err)
-    }
+func SearchProduct(query string) ([]Product, error) {
+	ctx := context.Background()
 
-    fmt.Println("Collection dropped successfully")
+	filter := bson.M{
+		"title": bson.M{
+			"$regex": query,
+		},
+	}
+
+	cursor, err := collection.Find(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var products []Product
+	for cursor.Next(ctx) {
+		var product Product
+		if err := cursor.Decode(&product); err != nil {
+			return nil, err
+		}
+		products = append(products, product)
+	}
+
+	if err := cursor.Err(); err != nil {
+		return nil, err
+	}
+
+	return products, nil
+}
+
+func DeleteCollection() {
+	// Drop the collection
+	err := collection.Drop(context.TODO())
+	if err != nil {
+		log.Fatalf("Failed to drop collection: %v", err)
+	}
+
+	fmt.Println("Collection dropped successfully")
 }

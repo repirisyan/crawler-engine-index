@@ -3,33 +3,55 @@ package MongoProduct
 
 import (
 	"context"
+	"crawler-index/db/mongodb"
 	"fmt"
+	"github.com/joho/godotenv"
 	"log"
 	"os"
-	"github.com/joho/godotenv"
-	"crawler-index/db/mongodb"
 
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type IndexProduct struct {
-	Title       string  `bson:"title"`
-	Link        string  `bson:"link"`
-	Description *string  `bson:"description"`
-	Category    *string  `bson:"category"`
-	Image       *string `bson:"image"`
-	Price       uint64  `bson:"price"`
-	Rating      float64 `bson:"rating"`
-	Sold        uint64  `bson:"sold"`
-	Seller      string  `bson:"seller"`
-	Location    string  `bson:"location"`
-	Comodity    string  `bson:"comodity"`
-	Sub_comodity       *string `bson:"Sub_comodity"`
-	Second_level_sub_comodity       *string `bson:"Second_level_sub_comodity"`
-	Third_level_sub_comodity       *string `bson:"Third_level_sub_comodity"`
-	Keyword     string  `bson:"keyword"`
-	Marketplace string  `bson:"marketplace"`
-	Created_at   string `bson:"created_at"`
+	Title string    `bson:"title"`
+	Link  string    `bson:"link"`
+	Image *[]string `bson:"image"`
+	Price struct {
+		Price          uint64
+		Original_price uint64
+		Discount       *uint32
+	} `bson:"price"`
+	Rating struct {
+		Rating float64
+		Count  uint64
+	} `bson:"rating"`
+	Sold   uint64 `bson:"sold"`
+	Seller struct {
+		Name string
+		Url  *string
+	} `bson:"seller"`
+	Description *string `bson:"description"`
+	Category    *string `bson:"category"`
+	Location    struct {
+		Country  *string
+		Province *string
+		City     *string
+		District *string
+	} `bson:"location"`
+	Comodity struct {
+		Comodity                  string
+		Sub_comodity              *string
+		Second_level_sub_comodity *string
+		Third_level_sub_comodity  *string
+	} `bson:"comodity"`
+	Comodity_id    uint64  `bson:"comodity_id"`
+	Keyword        string  `bson:"keyword"`
+	Keyword_id     uint64  `bson:"keyword_id"`
+	Marketplace    string  `bson:"marketplace"`
+	Marketplace_id uint64  `bson:"marketplace_id"`
+	User_id        uint64  `bson:"user_id"`
+	Published_at   *string `bson:"published_at"`
+	Created_at     string  `bson:"created_at"`
 }
 
 var client *mongo.Client
@@ -39,8 +61,8 @@ func init() {
 	// Connect to MongoDB
 	err := godotenv.Load()
 	if err != nil {
-        log.Fatalf("Error loading .env file: %v", err)
-    }
+		log.Fatalf("Error loading .env file: %v", err)
+	}
 
 	mongoHost := os.Getenv("DB_MONGO_HOST")
 	mongoPort := os.Getenv("DB_MONGO_PORT")
@@ -60,7 +82,6 @@ func init() {
 	// Set the collection
 	collection = client.Database(os.Getenv("DB_MONGO_DATABASE")).Collection("products")
 }
-
 
 func StoreProducts(products []interface{}) error {
 	_, err := collection.InsertMany(context.TODO(), products)
