@@ -15,9 +15,12 @@ import (
 )
 
 type Product struct {
-	Title string    `bson:"title"`
-	Link  string    `bson:"link"`
-	Image *[]string `bson:"image"`
+	Title string `bson:"title"`
+	Link  string `bson:"link"`
+	Image *struct {
+		Small *[]string
+		Large *[]string
+	} `bson:"image"`
 	Price struct {
 		Price          uint64
 		Original_price uint64
@@ -53,7 +56,11 @@ type Product struct {
 	Marketplace_id uint64  `bson:"marketplace_id"`
 	User_id        uint64  `bson:"user_id"`
 	Published_at   *string `bson:"published_at"`
-	Created_at     string  `bson:"created_at"`
+	Status         struct {
+		Value bool
+	} `bson:"status"`
+	Crawler_at string `bson:"crawler_at"`
+	Created_at string `bson:"created_at"`
 }
 
 var client *mongo.Client

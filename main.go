@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"sync"
+	"time"
 
 	"crawler-index/db/mongodb"
 	"crawler-index/db/mysql"
@@ -20,6 +21,10 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
+
+type Status struct {
+	Value bool
+}
 
 func main() {
 	mysql.Init()
@@ -91,7 +96,8 @@ func storeSupervision() {
 			fmt.Printf("Error fetching supervision List: %v\n", err)
 			break
 		}
-
+		now := time.Now()
+		formattedDate := now.Format("2006-01-02")
 		for _, svl := range supervisionList {
 			var productResult []interface{}
 			products, err := MongoTempItem.SearchProduct(svl.Name)
@@ -118,7 +124,9 @@ func storeSupervision() {
 					Marketplace_id: product.Marketplace_id,
 					User_id:        product.User_id,
 					Published_at:   product.Published_at,
-					Created_at:     product.Created_at,
+					Status:         Status{Value: false},
+					Crawler_at:     product.Created_at,
+					Created_at:     formattedDate,
 				})
 			}
 			if len(productResult) > 0 {
@@ -187,7 +195,7 @@ func removeDuplicateData(collection_name string) {
 					"marketplace_id": "$marketplace_id",
 					"seller":         "$seller",
 					"comodity_id":    "$comodity_id",
-					"created_at":    "$created_at",
+					"created_at":     "$created_at",
 				},
 				"duplicates": bson.M{"$addToSet": "$_id"},
 				"count":      bson.M{"$sum": 1},

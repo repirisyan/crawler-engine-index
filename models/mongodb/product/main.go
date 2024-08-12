@@ -13,9 +13,12 @@ import (
 )
 
 type IndexProduct struct {
-	Title string    `bson:"title"`
-	Link  string    `bson:"link"`
-	Image *[]string `bson:"image"`
+	Title string `bson:"title"`
+	Link  string `bson:"link"`
+	Image *struct {
+		Small *[]string
+		Large *[]string
+	} `bson:"image"`
 	Price struct {
 		Price          uint64
 		Original_price uint64

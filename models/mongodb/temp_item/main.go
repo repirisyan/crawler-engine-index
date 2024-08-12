@@ -17,7 +17,10 @@ import (
 type Product struct {
 	Title string
 	Link  string
-	Image *[]string
+	Image *struct {
+		Small *[]string
+		Large *[]string
+	}
 	Price struct {
 		Price          uint64
 		Original_price uint64
