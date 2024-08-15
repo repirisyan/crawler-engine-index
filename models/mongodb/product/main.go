@@ -34,7 +34,7 @@ type IndexProduct struct {
 		Url  *string
 	} `bson:"seller"`
 	Description *string `bson:"description"`
-	Category    *string `bson:"category"`
+	Category    string  `bson:"category"`
 	Location    struct {
 		Country  *string
 		Province *string

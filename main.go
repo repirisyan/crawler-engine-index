@@ -7,12 +7,17 @@ import (
 	"os"
 	"sync"
 	"time"
+	"bytes"
+	"io"
+    "encoding/json"
+    "net/http"
 
 	"crawler-index/db/mongodb"
 	"crawler-index/db/mysql"
 	"crawler-index/models/mongodb/product"
 	"crawler-index/models/mongodb/supervision"
 	"crawler-index/models/mongodb/temp_item"
+	"crawler-index/models/mongodb/train_data"
 	"crawler-index/models/mysql/supervision_list"
 
 	"github.com/joho/godotenv"
@@ -30,12 +35,13 @@ func main() {
 	mysql.Init()
 	defer mysql.DB.Close()
 	removeDuplicateData("temp_items")
-	// storeCrawlerData()
+	validateCategory()
+	storeTrainingData()
+	removeDuplicateData("training_data")
 	storeSupervision()
 	removeDuplicateData("supervisions")
 	storeIndexData()
 	removeDuplicateData("products")
-	// storeMysqlSupervision()
 	fmt.Printf("Cleaning Complete")
 }
 
@@ -88,6 +94,122 @@ func storeIndexData() {
 	}
 }
 
+// Validate master category
+func validateCategory() {
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatalf("Error loading .env file: %v", err)
+	}
+
+	limit := 1000
+    offset := 0
+
+    for {
+        products, err := MongoTempItem.GetDataForTraining(offset, limit)
+        if err != nil {
+            log.Printf("Error fetching products: %v\n", err)
+            break
+        }
+
+        var updateList []interface{}
+        for _, p := range products {
+            data := map[string]string{
+                "product_title":     p.Title,
+                "crawler_category":  p.Category,
+            }
+
+            // Convert data to JSON
+            jsonData, err := json.Marshal(data)
+            if err != nil {
+                log.Printf("Error marshalling data: %v\n", err)
+                return
+            }
+
+            // Make the POST request
+            resp, err := http.Post(os.Getenv("ML_CATEGORY_HOST"), "application/json", bytes.NewBuffer(jsonData))
+            if err != nil {
+                log.Printf("Error making POST request: %v\n", err)
+                continue // Continue with the next product
+            }
+            defer resp.Body.Close()
+
+            // Read the response
+            res, err := io.ReadAll(resp.Body)
+            if err != nil {
+                log.Printf("Error reading response: %v\n", err)
+                continue // Continue with the next product
+            }
+
+            // Convert response to string
+            responseString := string(res)
+
+            if responseString != p.Comodity.Comodity {
+                updateList = append(updateList, MongoTempItem.UpdateComodity{
+                    ID:       p.ID,
+                    Comodity: p.Comodity.Comodity,
+                })
+            }
+        }
+
+        if len(updateList) > 0 {
+            err = MongoTempItem.UpdateProductComodity(updateList)
+            if err != nil {
+                log.Printf("Failed to perform batch update: %v\n", err)
+                // Continue to next batch even if update fails
+            }
+        }
+
+        if len(products) < limit {
+            // No more records to fetch
+            break
+        }
+
+        // Update offset for next iteration
+        offset += limit
+
+        // Optional: Add a sleep to avoid overloading the server
+        time.Sleep(1 * time.Second)
+    }
+}
+
+// Training Data for Machine Learning label Category
+func storeTrainingData() {
+	limit := 1000
+	offset := 0
+	for {
+		products, err := MongoTempItem.GetDataForTraining(offset, limit)
+		if err != nil {
+			fmt.Printf("Error fetching products: %v\n", err)
+			break
+		}
+		// Convert struct to interface
+		var productResult []interface{}
+		for _, p := range products {
+			productResult = append(productResult, MongoTrainingData.TrainingData{
+				Product_title:    p.Title,
+				Crawler_category: p.Category,
+				Master_category:  p.Comodity.Comodity,
+			})
+		}
+
+		if len(productResult) > 0 {
+			err = MongoTrainingData.StoreTrainingData(productResult)
+			if err != nil {
+				log.Printf("Failed to insert batch products: %v\n", err)
+				continue
+			}
+		}
+
+		if len(products) == 0 {
+			// No more records to fetch
+			break
+		}
+
+		// Update offset for next iteration
+		offset += limit
+	}
+}
+
 // Store Data from temp_item to supervisions in mongodb based on supervision list in mysql
 func storeSupervision() {
 	for {
@@ -107,26 +229,23 @@ func storeSupervision() {
 			}
 			for _, product := range products {
 				productResult = append(productResult, MongoSupervision.Product{
-					Title:          product.Title,
-					Link:           product.Link,
-					Image:          product.Image,
-					Price:          product.Price,
-					Sold:           product.Sold,
-					Seller:         product.Seller,
-					Description:    product.Description,
-					Category:       product.Category,
-					Location:       product.Location,
-					Comodity:       product.Comodity,
-					Comodity_id:    product.Comodity_id,
-					Keyword:        product.Keyword,
-					Keyword_id:     product.Keyword_id,
-					Marketplace:    product.Marketplace,
-					Marketplace_id: product.Marketplace_id,
-					User_id:        product.User_id,
-					Published_at:   product.Published_at,
-					Status:         Status{Value: false},
-					Crawler_at:     product.Created_at,
-					Created_at:     formattedDate,
+					Title:                product.Title,
+					Link:                 product.Link,
+					Image:                product.Image,
+					Price:                product.Price,
+					Sold:                 product.Sold,
+					Seller:               product.Seller,
+					Description:          product.Description,
+					Category:             product.Category,
+					Location:             product.Location,
+					Comodity:             product.Comodity,
+					Keyword:              product.Keyword,
+					Supervision_category: svl.Name,
+					Marketplace:          product.Marketplace,
+					Published_at:         product.Published_at,
+					Status:               Status{Value: false},
+					Crawler_at:           product.Created_at,
+					Created_at:           formattedDate,
 				})
 			}
 			if len(productResult) > 0 {
@@ -168,13 +287,17 @@ func removeDuplicateData(collection_name string) {
 
 	// Create an index on the fields to identify duplicates
 	indexOptions := options.Index().SetUnique(false)
-	keys := bson.D{
-		{"title", 1},
-		{"marketplace_id", 1},
-		{"comodity_id", 1},
-		{"created_at", 1},
-		{"seller", 1},
+	var keys bson.D
+
+	switch collectionName {
+	case "training_data":
+		keys = bson.D{{"product_title", 1}, {"crawler_category", 1}}
+	case "supervisions":
+		keys = bson.D{{"title", 1}, {"marketplace", 1}, {"supervision_category", 1}, {"seller", 1}}
+	default:
+		keys = bson.D{{"title", 1}, {"marketplace", 1}, {"seller", 1}}
 	}
+
 	indexModel := mongo.IndexModel{
 		Keys:    keys,
 		Options: indexOptions,
@@ -187,25 +310,35 @@ func removeDuplicateData(collection_name string) {
 	}
 
 	// Aggregation pipeline to identify and delete duplicates
-	pipeline := []bson.M{
-		{
-			"$group": bson.M{
-				"_id": bson.M{
-					"title":          "$title",
-					"marketplace_id": "$marketplace_id",
-					"seller":         "$seller",
-					"comodity_id":    "$comodity_id",
-					"created_at":     "$created_at",
-				},
+	var pipeline []bson.M
+	switch collectionName {
+	case "training_data":
+		pipeline = []bson.M{
+			{"$group": bson.M{
+				"_id": bson.M{"product_title": "$product_title", "crawler_category": "$crawler_category", "master_category": "$master_category"},
 				"duplicates": bson.M{"$addToSet": "$_id"},
 				"count":      bson.M{"$sum": 1},
-			},
-		},
-		{
-			"$match": bson.M{
-				"count": bson.M{"$gt": 1},
-			},
-		},
+			}},
+			{"$match": bson.M{"count": bson.M{"$gt": 1}}},
+		}
+	case "supervisions":
+		pipeline = []bson.M{
+			{"$group": bson.M{
+				"_id": bson.M{"title": "$title", "marketplace": "$marketplace", "supervision_category": "$supervision_category", "seller": "$seller"},
+				"duplicates": bson.M{"$addToSet": "$_id"},
+				"count":      bson.M{"$sum": 1},
+			}},
+			{"$match": bson.M{"count": bson.M{"$gt": 1}}},
+		}
+	default:
+		pipeline = []bson.M{
+			{"$group": bson.M{
+				"_id": bson.M{"title": "$title", "marketplace": "$marketplace", "seller": "$seller"},
+				"duplicates": bson.M{"$addToSet": "$_id"},
+				"count":      bson.M{"$sum": 1},
+			}},
+			{"$match": bson.M{"count": bson.M{"$gt": 1}}},
+		}
 	}
 
 	// Perform aggregation to identify duplicates
