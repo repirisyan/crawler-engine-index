@@ -41,20 +41,22 @@ type IndexProduct struct {
 		City     *string
 		District *string
 	} `bson:"location"`
+	Certified struct {
+		Bpom                bool
+		Sni                 bool
+		Halal               bool
+		Distribution_permit bool
+	}
 	Comodity struct {
 		Comodity                  string
 		Sub_comodity              *string
 		Second_level_sub_comodity *string
 		Third_level_sub_comodity  *string
 	} `bson:"comodity"`
-	Comodity_id    uint64  `bson:"comodity_id"`
-	Keyword        string  `bson:"keyword"`
-	Keyword_id     uint64  `bson:"keyword_id"`
-	Marketplace    string  `bson:"marketplace"`
-	Marketplace_id uint64  `bson:"marketplace_id"`
-	User_id        uint64  `bson:"user_id"`
-	Published_at   *string `bson:"published_at"`
-	Created_at     string  `bson:"created_at"`
+	Keyword      string  `bson:"keyword"`
+	Marketplace  string  `bson:"marketplace"`
+	Published_at *string `bson:"published_at"`
+	Created_at   string  `bson:"created_at"`
 }
 
 var client *mongo.Client

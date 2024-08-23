@@ -43,7 +43,13 @@ type Product struct {
 		City     *string
 		District *string
 	} `bson:"location"`
-	Supervision_category string `bson:"supervision_category"`
+	Certified struct {
+		Bpom                bool
+		Sni                 bool
+		Halal               bool
+		Distribution_permit bool
+	}
+	Supervision_category string
 	Comodity             struct {
 		Comodity                  string
 		Sub_comodity              *string

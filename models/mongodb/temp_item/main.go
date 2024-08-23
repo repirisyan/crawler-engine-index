@@ -4,19 +4,20 @@ package MongoTempItem
 import (
 	"context"
 	"crawler-index/db/mongodb"
-	"fmt"
 	"errors"
+	"fmt"
 	"github.com/joho/godotenv"
 	"log"
 	"os"
 
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type Product struct {
+	ID    primitive.ObjectID `bson:"_id"`
 	Title string
 	Link  string
 	Image *struct {
@@ -45,6 +46,12 @@ type Product struct {
 		City     *string
 		District *string
 	}
+	Certified struct {
+		Bpom                bool
+		Sni                 bool
+		Halal               bool
+		Distribution_permit bool
+	}
 	Comodity struct {
 		Comodity                  string
 		Sub_comodity              *string
@@ -57,8 +64,18 @@ type Product struct {
 	Created_at   string
 }
 
+type Certified struct {
+	ID        primitive.ObjectID `bson:"_id"`
+	Certified struct {
+		Bpom                bool
+		Sni                 bool
+		Halal               bool
+		Distribution_permit bool
+	}
+}
+
 type TrainingData struct {
-	ID primitive.ObjectID `bson:"_id"`
+	ID       primitive.ObjectID `bson:"_id"`
 	Title    string
 	Category string
 	Comodity struct {
@@ -67,11 +84,18 @@ type TrainingData struct {
 		Second_level_sub_comodity *string
 		Third_level_sub_comodity  *string
 	}
+	Keyword string
 }
 
-type UpdateComodity struct{
-	ID primitive.ObjectID `bson:"_id"`
-	Comodity string
+type UpdateComodity struct {
+	ID       primitive.ObjectID `bson:"_id"`
+	Comodity struct {
+		Comodity                  string
+		Sub_comodity              *string
+		Second_level_sub_comodity *string
+		Third_level_sub_comodity  *string
+	}
+	Keyword string
 }
 
 var client *mongo.Client
@@ -104,31 +128,59 @@ func init() {
 }
 
 func UpdateProductComodity(updateList []interface{}) error {
-    var models []mongo.WriteModel
+	var models []mongo.WriteModel
 
-    for _, item := range updateList {
-        // Type assert item to UpdateComodity
-        product, ok := item.(UpdateComodity)
-        if !ok {
-            return errors.New("failed to cast item to UpdateComodity")
-        }
+	for _, item := range updateList {
+		// Type assert item to UpdateComodity
+		product, ok := item.(UpdateComodity)
+		if !ok {
+			return errors.New("failed to cast item to UpdateComodity")
+		}
 
-        // Create an update operation for each item in the updateList
-        filter := bson.M{"_id": product.ID}
-        update := bson.M{"$set": bson.M{"comodity.comodity": product.Comodity}}
+		// Create an update operation for each item in the updateList
+		filter := bson.M{"_id": product.ID}
+		update := bson.M{"$set": bson.M{"comodity": product.Comodity, "keyword": product.Keyword}}
 
-        // Append the update operation to the list of WriteModels
-        models = append(models, mongo.NewUpdateOneModel().SetFilter(filter).SetUpdate(update))
-    }
+		// Append the update operation to the list of WriteModels
+		models = append(models, mongo.NewUpdateOneModel().SetFilter(filter).SetUpdate(update))
+	}
 
-    // Execute the bulk write operation
-    bulkOption := options.BulkWrite().SetOrdered(false)
-    _, err := collection.BulkWrite(context.TODO(), models, bulkOption)
-    if err != nil {
-        return err
-    }
+	// Execute the bulk write operation
+	bulkOption := options.BulkWrite().SetOrdered(false)
+	_, err := collection.BulkWrite(context.TODO(), models, bulkOption)
+	if err != nil {
+		return err
+	}
 
-    return nil
+	return nil
+}
+
+func SetCertified(productResult []interface{}) error {
+	var models []mongo.WriteModel
+
+	for _, item := range productResult {
+		// Type assert item to UpdateComodity
+		product, ok := item.(Certified)
+		if !ok {
+			return errors.New("failed to cast item to Set Certified")
+		}
+
+		// Create an update operation for each item in the updateList
+		filter := bson.M{"_id": product.ID}
+		update := bson.M{"$set": bson.M{"certified": product.Certified}}
+
+		// Append the update operation to the list of WriteModels
+		models = append(models, mongo.NewUpdateOneModel().SetFilter(filter).SetUpdate(update))
+	}
+
+	// Execute the bulk write operation
+	bulkOption := options.BulkWrite().SetOrdered(false)
+	_, err := collection.BulkWrite(context.TODO(), models, bulkOption)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // GetAllProducts retrieves all products from the database
@@ -169,7 +221,7 @@ func GetDataForTraining(offset, limit int) ([]TrainingData, error) {
 	findOptions := options.Find()
 	findOptions.SetSkip(int64(offset))
 	findOptions.SetLimit(int64(limit))
-	findOptions.SetProjection(bson.M{"title": 1, "category": 1, "comodity": 1, "_id": 1})
+	findOptions.SetProjection(bson.M{"title": 1, "category": 1, "comodity": 1, "keyword": 1, "_id": 1})
 
 	cursor, err := collection.Find(ctx, bson.M{}, findOptions)
 	if err != nil {

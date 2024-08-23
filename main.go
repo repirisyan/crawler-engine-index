@@ -1,16 +1,17 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
-	"bytes"
-	"io"
-    "encoding/json"
-    "net/http"
 
 	"crawler-index/db/mongodb"
 	"crawler-index/db/mysql"
@@ -31,18 +32,67 @@ type Status struct {
 	Value bool
 }
 
+type Certified struct {
+	Bpom                bool
+	Sni                 bool
+	Halal               bool
+	Distribution_permit bool
+}
+
 func main() {
 	mysql.Init()
 	defer mysql.DB.Close()
 	removeDuplicateData("temp_items")
-	validateCategory()
-	storeTrainingData()
-	removeDuplicateData("training_data")
+	setCertified()
+	// validateCategory()
+	// storeTrainingData()
+	// removeDuplicateData("training_data")
 	storeSupervision()
 	removeDuplicateData("supervisions")
 	storeIndexData()
 	removeDuplicateData("products")
 	fmt.Printf("Cleaning Complete")
+}
+
+func setCertified() {
+	limit := 1000
+	offset := 0
+	for {
+		products, err := MongoTempItem.GetAllProducts(offset, limit)
+		if err != nil {
+			fmt.Printf("Error fetching products: %v\n", err)
+			break
+		}
+
+		var productResult []interface{}
+		for _, p := range products {
+			productResult = append(productResult, MongoTempItem.Certified{
+				ID: p.ID,
+				Certified: Certified{
+					Bpom:                strings.Contains(*p.Description, "BPOM"),
+					Sni:                 strings.Contains(*p.Description, "SNI"),
+					Halal:               strings.Contains(*p.Description, "Halal"),
+					Distribution_permit: strings.Contains(*p.Description, "Ijin Edar"),
+				},
+			})
+		}
+
+		if len(productResult) > 0 {
+			err = MongoTempItem.SetCertified(productResult)
+			if err != nil {
+				log.Printf("Failed to set supervision category: %v\n", err)
+				continue
+			}
+		}
+
+		if len(products) == 0 {
+			// No more records to fetch
+			break
+		}
+
+		// Update offset for next iteration
+		offset += limit
+	}
 }
 
 // Store Data from temp_item to products in mongodb
@@ -69,6 +119,7 @@ func storeIndexData() {
 				Sold:        p.Sold,
 				Seller:      p.Seller,
 				Location:    p.Location,
+				Certified:   p.Certified,
 				Comodity:    p.Comodity,
 				Keyword:     p.Keyword,
 				Marketplace: p.Marketplace,
@@ -102,74 +153,91 @@ func validateCategory() {
 	}
 
 	limit := 1000
-    offset := 0
+	offset := 0
 
-    for {
-        products, err := MongoTempItem.GetDataForTraining(offset, limit)
-        if err != nil {
-            log.Printf("Error fetching products: %v\n", err)
-            break
-        }
+	for {
+		products, err := MongoTempItem.GetDataForTraining(offset, limit)
+		if err != nil {
+			log.Printf("Error fetching products: %v\n", err)
+			break
+		}
 
-        var updateList []interface{}
-        for _, p := range products {
-            data := map[string]string{
-                "product_title":     p.Title,
-                "crawler_category":  p.Category,
-            }
+		var updateList []interface{}
+		for _, p := range products {
+			data := map[string]string{
+				"product_title":    p.Title,
+				"crawler_category": p.Category,
+			}
 
-            // Convert data to JSON
-            jsonData, err := json.Marshal(data)
-            if err != nil {
-                log.Printf("Error marshalling data: %v\n", err)
-                return
-            }
+			// Convert data to JSON
+			jsonData, err := json.Marshal(data)
+			if err != nil {
+				log.Printf("Error marshalling data: %v\n", err)
+				return
+			}
 
-            // Make the POST request
-            resp, err := http.Post(os.Getenv("ML_CATEGORY_HOST"), "application/json", bytes.NewBuffer(jsonData))
-            if err != nil {
-                log.Printf("Error making POST request: %v\n", err)
-                continue // Continue with the next product
-            }
-            defer resp.Body.Close()
+			// Make the POST request
+			resp, err := http.Post(os.Getenv("ML_CATEGORY_HOST"), "application/json", bytes.NewBuffer(jsonData))
+			if err != nil {
+				log.Printf("Error making POST request: %v\n", err)
+				continue // Continue with the next product
+			}
+			defer resp.Body.Close()
 
-            // Read the response
-            res, err := io.ReadAll(resp.Body)
-            if err != nil {
-                log.Printf("Error reading response: %v\n", err)
-                continue // Continue with the next product
-            }
+			// Read the response
+			res, err := io.ReadAll(resp.Body)
+			if err != nil {
+				log.Printf("Error reading response: %v\n", err)
+				continue // Continue with the next product
+			}
 
-            // Convert response to string
-            responseString := string(res)
+			var obj MongoTrainingData.TrainingData
 
-            if responseString != p.Comodity.Comodity {
-                updateList = append(updateList, MongoTempItem.UpdateComodity{
-                    ID:       p.ID,
-                    Comodity: p.Comodity.Comodity,
-                })
-            }
-        }
+			err = json.Unmarshal(res, &obj)
+			if err != nil {
+				fmt.Println("Error:", err)
+				return
+			}
+			// Convert response to string
 
-        if len(updateList) > 0 {
-            err = MongoTempItem.UpdateProductComodity(updateList)
-            if err != nil {
-                log.Printf("Failed to perform batch update: %v\n", err)
-                // Continue to next batch even if update fails
-            }
-        }
+			if obj.Master_category != p.Comodity.Comodity {
+				updateList = append(updateList, MongoTempItem.UpdateComodity{
+					ID: p.ID,
+					Comodity: struct {
+						Comodity                  string
+						Sub_comodity              *string
+						Second_level_sub_comodity *string
+						Third_level_sub_comodity  *string
+					}{
+						obj.Master_category,
+						obj.Sub_master_category,
+						obj.Second_level_sub_master_category,
+						obj.Third_level_sub_master_category,
+					},
+					Keyword: obj.Keyword,
+				})
+			}
+		}
 
-        if len(products) < limit {
-            // No more records to fetch
-            break
-        }
+		if len(updateList) > 0 {
+			err = MongoTempItem.UpdateProductComodity(updateList)
+			if err != nil {
+				log.Printf("Failed to perform batch update: %v\n", err)
+				// Continue to next batch even if update fails
+			}
+		}
 
-        // Update offset for next iteration
-        offset += limit
+		if len(products) < limit {
+			// No more records to fetch
+			break
+		}
 
-        // Optional: Add a sleep to avoid overloading the server
-        time.Sleep(1 * time.Second)
-    }
+		// Update offset for next iteration
+		offset += limit
+
+		// Optional: Add a sleep to avoid overloading the server
+		time.Sleep(1 * time.Second)
+	}
 }
 
 // Training Data for Machine Learning label Category
@@ -186,9 +254,13 @@ func storeTrainingData() {
 		var productResult []interface{}
 		for _, p := range products {
 			productResult = append(productResult, MongoTrainingData.TrainingData{
-				Product_title:    p.Title,
-				Crawler_category: p.Category,
-				Master_category:  p.Comodity.Comodity,
+				Product_title:                    p.Title,
+				Crawler_category:                 p.Category,
+				Master_category:                  p.Comodity.Comodity,
+				Sub_master_category:              p.Comodity.Sub_comodity,
+				Second_level_sub_master_category: p.Comodity.Second_level_sub_comodity,
+				Third_level_sub_master_category:  p.Comodity.Third_level_sub_comodity,
+				Keyword:                          p.Keyword,
 			})
 		}
 
@@ -240,6 +312,7 @@ func storeSupervision() {
 					Location:             product.Location,
 					Comodity:             product.Comodity,
 					Keyword:              product.Keyword,
+					Certified:            product.Certified,
 					Supervision_category: svl.Name,
 					Marketplace:          product.Marketplace,
 					Published_at:         product.Published_at,
@@ -291,7 +364,7 @@ func removeDuplicateData(collection_name string) {
 
 	switch collectionName {
 	case "training_data":
-		keys = bson.D{{"product_title", 1}, {"crawler_category", 1}}
+		keys = bson.D{{"product_title", 1}, {"crawler_category", 1}, {"keyword", 1}}
 	case "supervisions":
 		keys = bson.D{{"title", 1}, {"marketplace", 1}, {"supervision_category", 1}, {"seller", 1}}
 	default:
@@ -315,7 +388,7 @@ func removeDuplicateData(collection_name string) {
 	case "training_data":
 		pipeline = []bson.M{
 			{"$group": bson.M{
-				"_id": bson.M{"product_title": "$product_title", "crawler_category": "$crawler_category", "master_category": "$master_category"},
+				"_id":        bson.M{"product_title": "$product_title", "crawler_category": "$crawler_category", "keyword": "$keyword"},
 				"duplicates": bson.M{"$addToSet": "$_id"},
 				"count":      bson.M{"$sum": 1},
 			}},
@@ -324,7 +397,7 @@ func removeDuplicateData(collection_name string) {
 	case "supervisions":
 		pipeline = []bson.M{
 			{"$group": bson.M{
-				"_id": bson.M{"title": "$title", "marketplace": "$marketplace", "supervision_category": "$supervision_category", "seller": "$seller"},
+				"_id":        bson.M{"title": "$title", "marketplace": "$marketplace", "supervision_category": "$supervision_category", "seller": "$seller"},
 				"duplicates": bson.M{"$addToSet": "$_id"},
 				"count":      bson.M{"$sum": 1},
 			}},
@@ -333,7 +406,7 @@ func removeDuplicateData(collection_name string) {
 	default:
 		pipeline = []bson.M{
 			{"$group": bson.M{
-				"_id": bson.M{"title": "$title", "marketplace": "$marketplace", "seller": "$seller"},
+				"_id":        bson.M{"title": "$title", "marketplace": "$marketplace", "seller": "$seller"},
 				"duplicates": bson.M{"$addToSet": "$_id"},
 				"count":      bson.M{"$sum": 1},
 			}},
