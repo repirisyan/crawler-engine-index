@@ -4,9 +4,11 @@ import (
 	"context"
 	"crawler-index/db/mongodb"
 	"fmt"
-	"github.com/joho/godotenv"
 	"log"
 	"os"
+	"time"
+
+	"github.com/joho/godotenv"
 
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -19,6 +21,7 @@ type TrainingData struct {
 	Second_level_sub_master_category *string
 	Third_level_sub_master_category  *string
 	Keyword                          string
+	Created_at                       time.Time
 }
 
 var client *mongo.Client
@@ -33,9 +36,11 @@ func init() {
 
 	mongoHost := os.Getenv("DB_MONGO_HOST")
 	mongoPort := os.Getenv("DB_MONGO_PORT")
+	mongoUser := os.Getenv("DB_MONGO_USER")
+	mongoPassword := os.Getenv("DB_MONGO_PASSWORD")
 
-	uri := fmt.Sprintf("mongodb://%s:%s", mongoHost, mongoPort)
-	fmt.Println(os.Getenv("DB_MONGO_PORT"))
+	uri := fmt.Sprintf("mongodb://%s:%s@%s:%s", mongoUser, mongoPassword, mongoHost, mongoPort)
+
 	if err := mongodb.InitMongoDB(uri); err != nil {
 		log.Fatalf("Failed to initialize MongoDB: %v", err)
 	}

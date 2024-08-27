@@ -49,8 +49,8 @@ type Product struct {
 		Halal               bool
 		Distribution_permit bool
 	}
-	Supervision_category string
-	Comodity             struct {
+	Supervision_keyword string
+	Comodity            struct {
 		Comodity                  string
 		Sub_comodity              *string
 		Second_level_sub_comodity *string
@@ -78,9 +78,11 @@ func init() {
 
 	mongoHost := os.Getenv("DB_MONGO_HOST")
 	mongoPort := os.Getenv("DB_MONGO_PORT")
+	mongoUser := os.Getenv("DB_MONGO_USER")
+	mongoPassword := os.Getenv("DB_MONGO_PASSWORD")
 
-	uri := fmt.Sprintf("mongodb://%s:%s", mongoHost, mongoPort)
-	fmt.Println(os.Getenv("DB_MONGO_PORT"))
+	uri := fmt.Sprintf("mongodb://%s:%s@%s:%s", mongoUser, mongoPassword, mongoHost, mongoPort)
+
 	if err := mongodb.InitMongoDB(uri); err != nil {
 		log.Fatalf("Failed to initialize MongoDB: %v", err)
 	}

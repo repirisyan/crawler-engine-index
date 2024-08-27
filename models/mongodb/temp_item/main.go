@@ -110,9 +110,11 @@ func init() {
 
 	mongoHost := os.Getenv("DB_MONGO_HOST")
 	mongoPort := os.Getenv("DB_MONGO_PORT")
+	mongoUser := os.Getenv("DB_MONGO_USER")
+	mongoPassword := os.Getenv("DB_MONGO_PASSWORD")
 
-	uri := fmt.Sprintf("mongodb://%s:%s", mongoHost, mongoPort)
-	fmt.Println(os.Getenv("DB_MONGO_PORT"))
+	uri := fmt.Sprintf("mongodb://%s:%s@%s:%s", mongoUser, mongoPassword, mongoHost, mongoPort)
+
 	if err := mongodb.InitMongoDB(uri); err != nil {
 		log.Fatalf("Failed to initialize MongoDB: %v", err)
 	}

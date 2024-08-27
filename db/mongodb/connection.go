@@ -2,9 +2,11 @@ package mongodb
 
 import (
 	"context"
+	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"log"
+	"os"
 )
 
 type MongoDB struct {
@@ -17,7 +19,17 @@ var db *MongoDB
 
 // InitMongoDB initializes the MongoDB client
 func InitMongoDB(uri string) error {
-	clientOptions := options.Client().ApplyURI(uri)
+	err := godotenv.Load()
+
+	if err != nil {
+		log.Fatalf("Error loading .env file: %v", err)
+	}
+
+	clientOptions := options.Client().ApplyURI(uri).SetAuth(options.Credential{
+		Username:   os.Getenv("DB_MONGO_USER"),
+		Password:   os.Getenv("DB_MONGO_PASSWORD"),
+		AuthSource: os.Getenv("DB_MONGO_DATABASE"),
+	})
 	client, err := mongo.Connect(context.Background(), clientOptions)
 	if err != nil {
 		return err

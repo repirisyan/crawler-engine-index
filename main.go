@@ -43,18 +43,20 @@ func main() {
 	mysql.Init()
 	defer mysql.DB.Close()
 	removeDuplicateData("temp_items")
-	setCertified()
+	// setCertified()
+
 	// validateCategory()
 	// storeTrainingData()
 	// removeDuplicateData("training_data")
-	storeSupervision()
-	removeDuplicateData("supervisions")
-	storeIndexData()
-	removeDuplicateData("products")
+	// storeSupervision()
+	// removeDuplicateData("supervisions")
+	// storeIndexData()
+	// removeDuplicateData("products")
 	fmt.Printf("Cleaning Complete")
 }
 
 func setCertified() {
+	fmt.Println("Set Certificated")
 	limit := 1000
 	offset := 0
 	for {
@@ -97,6 +99,8 @@ func setCertified() {
 
 // Store Data from temp_item to products in mongodb
 func storeIndexData() {
+	fmt.Println("Store Index Data")
+
 	limit := 1000
 	offset := 0
 	for {
@@ -147,6 +151,8 @@ func storeIndexData() {
 
 // Validate master category
 func validateCategory() {
+	fmt.Println("Validate Category")
+
 	err := godotenv.Load()
 	if err != nil {
 		log.Fatalf("Error loading .env file: %v", err)
@@ -175,7 +181,7 @@ func validateCategory() {
 				log.Printf("Error marshalling data: %v\n", err)
 				return
 			}
-
+			fmt.Println("Data:", data)
 			// Make the POST request
 			resp, err := http.Post(os.Getenv("ML_CATEGORY_HOST"), "application/json", bytes.NewBuffer(jsonData))
 			if err != nil {
@@ -242,6 +248,8 @@ func validateCategory() {
 
 // Training Data for Machine Learning label Category
 func storeTrainingData() {
+	fmt.Println("Store Training Data")
+
 	limit := 1000
 	offset := 0
 	for {
@@ -261,6 +269,7 @@ func storeTrainingData() {
 				Second_level_sub_master_category: p.Comodity.Second_level_sub_comodity,
 				Third_level_sub_master_category:  p.Comodity.Third_level_sub_comodity,
 				Keyword:                          p.Keyword,
+				Created_at:                       time.Now(),
 			})
 		}
 
@@ -284,6 +293,8 @@ func storeTrainingData() {
 
 // Store Data from temp_item to supervisions in mongodb based on supervision list in mysql
 func storeSupervision() {
+	fmt.Println("Store Supervision")
+
 	for {
 		supervisionList, err := mysqlSupervisionList.GetAllData()
 		if err != nil {
@@ -301,24 +312,24 @@ func storeSupervision() {
 			}
 			for _, product := range products {
 				productResult = append(productResult, MongoSupervision.Product{
-					Title:                product.Title,
-					Link:                 product.Link,
-					Image:                product.Image,
-					Price:                product.Price,
-					Sold:                 product.Sold,
-					Seller:               product.Seller,
-					Description:          product.Description,
-					Category:             product.Category,
-					Location:             product.Location,
-					Comodity:             product.Comodity,
-					Keyword:              product.Keyword,
-					Certified:            product.Certified,
-					Supervision_category: svl.Name,
-					Marketplace:          product.Marketplace,
-					Published_at:         product.Published_at,
-					Status:               Status{Value: false},
-					Crawler_at:           product.Created_at,
-					Created_at:           formattedDate,
+					Title:               product.Title,
+					Link:                product.Link,
+					Image:               product.Image,
+					Price:               product.Price,
+					Sold:                product.Sold,
+					Seller:              product.Seller,
+					Description:         product.Description,
+					Category:            product.Category,
+					Location:            product.Location,
+					Comodity:            product.Comodity,
+					Keyword:             product.Keyword,
+					Certified:           product.Certified,
+					Supervision_keyword: svl.Name,
+					Marketplace:         product.Marketplace,
+					Published_at:        product.Published_at,
+					Status:              Status{Value: false},
+					Crawler_at:          product.Created_at,
+					Created_at:          formattedDate,
 				})
 			}
 			if len(productResult) > 0 {
@@ -336,12 +347,14 @@ func storeSupervision() {
 
 // Remove Duplicate Data from products in mongodb
 func removeDuplicateData(collection_name string) {
+	fmt.Println("Remove Duplicate Data From %s", collection_name)
+
 	err := godotenv.Load()
 	// Initialize MongoDB client
 	if err != nil {
 		log.Fatalf("Error loading .env file: %v", err)
 	}
-	uri := "mongodb://" + os.Getenv("DB_MONGO_HOST") + ":" + os.Getenv("DB_MONGO_PORT")
+	uri := "mongodb://" + os.Getenv("DB_MONGO_USER") + ":" + os.Getenv("DB_MONGO_PASSWORD") + "@" + os.Getenv("DB_MONGO_HOST") + ":" + os.Getenv("DB_MONGO_PORT")
 	if err := mongodb.InitMongoDB(uri); err != nil {
 		log.Fatalf("Failed to initialize MongoDB: %v", err)
 	}
