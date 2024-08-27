@@ -9,9 +9,11 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
+	"strconv"
 
 	"crawler-index/db/mongodb"
 	"crawler-index/db/mysql"
@@ -34,6 +36,7 @@ type Status struct {
 
 type Certified struct {
 	Bpom                bool
+	Bpom_number         string
 	Sni                 bool
 	Halal               bool
 	Distribution_permit bool
@@ -42,8 +45,8 @@ type Certified struct {
 func main() {
 	mysql.Init()
 	defer mysql.DB.Close()
-	removeDuplicateData("temp_items")
-	// setCertified()
+	// removeDuplicateData("temp_items")
+	setCertified()
 
 	// validateCategory()
 	// storeTrainingData()
@@ -53,6 +56,32 @@ func main() {
 	// storeIndexData()
 	// removeDuplicateData("products")
 	fmt.Printf("Cleaning Complete")
+}
+
+// Extracts and formats BPOM number from the description
+func extractBPOM(description string) string {
+    // Updated pattern to match BPOM and POM codes with exactly two letters followed by a numeric string
+    pattern := `(?i)(?:BPOM|POM)\s*(?:No\.?\s*|:?\s*|RI\s*POM|RI\s*:)?\s*([A-Z]{2})[-.\s]*(\d{7,}|[A-Z0-9]{9,})`
+
+    // Compile regex
+    re := regexp.MustCompile(pattern)
+
+    // Find matches
+    matches := re.FindAllStringSubmatch(description, -1)
+    if len(matches) > 0 {
+        for _, match := range matches {
+            if len(match) > 2 {
+                code := match[1]
+                number := strings.ReplaceAll(match[2], " ", "")
+
+                // Ensure the number is numeric and the code is exactly two letters
+                if _, err := strconv.Atoi(number); err == nil || code == "NA" || code == "SD" {
+                    return code + number
+                }
+            }
+        }
+    }
+    return ""
 }
 
 func setCertified() {
@@ -68,10 +97,13 @@ func setCertified() {
 
 		var productResult []interface{}
 		for _, p := range products {
+			bpom_number := extractBPOM(*p.Description)
+
 			productResult = append(productResult, MongoTempItem.Certified{
 				ID: p.ID,
 				Certified: Certified{
 					Bpom:                strings.Contains(*p.Description, "BPOM"),
+					Bpom_number:         bpom_number,
 					Sni:                 strings.Contains(*p.Description, "SNI"),
 					Halal:               strings.Contains(*p.Description, "Halal"),
 					Distribution_permit: strings.Contains(*p.Description, "Ijin Edar"),
@@ -401,7 +433,7 @@ func removeDuplicateData(collection_name string) {
 	case "training_data":
 		pipeline = []bson.M{
 			{"$group": bson.M{
-				"_id":        bson.M{"product_title": "$product_title", "crawler_category": "$crawler_category", "keyword": "$keyword"},
+				"_id":        bson.M{"product_title": "$product_title"},
 				"duplicates": bson.M{"$addToSet": "$_id"},
 				"count":      bson.M{"$sum": 1},
 			}},
