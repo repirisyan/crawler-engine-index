@@ -48,6 +48,7 @@ type Product struct {
 	}
 	Certified struct {
 		Bpom                bool
+		Bpom_number         string
 		Sni                 bool
 		Halal               bool
 		Distribution_permit bool
@@ -59,6 +60,7 @@ type Product struct {
 		Third_level_sub_comodity  *string
 	}
 	Keyword      string
+	Keyword_id   uint64
 	Marketplace  string
 	Published_at *string
 	Created_at   string
@@ -75,17 +77,15 @@ type Certified struct {
 	}
 }
 
+type ValidateCategory struct {
+	Keyword_id uint64
+	Accuracy   float32
+}
+
 type TrainingData struct {
-	ID       primitive.ObjectID `bson:"_id"`
-	Title    string
-	Category string
-	Comodity struct {
-		Comodity                  string
-		Sub_comodity              *string
-		Second_level_sub_comodity *string
-		Third_level_sub_comodity  *string
-	}
-	Keyword string
+	ID         primitive.ObjectID `bson:"_id"`
+	Title      string
+	Keyword_id uint64
 }
 
 type UpdateComodity struct {
@@ -97,6 +97,13 @@ type UpdateComodity struct {
 		Third_level_sub_comodity  *string
 	}
 	Keyword string
+}
+
+type Comodity struct {
+	Comodity                  string
+	Sub_comodity              *string
+	Second_level_sub_comodity *string
+	Third_level_sub_comodity  *string
 }
 
 var client *mongo.Client
@@ -130,16 +137,11 @@ func init() {
 	collection = client.Database(os.Getenv("DB_MONGO_DATABASE")).Collection("temp_items")
 }
 
-func UpdateProductComodity(updateList []interface{}) error {
+// UpdateProductComodity updates multiple commodities in the database.
+func UpdateProductComodity(updateList []UpdateComodity) error {
 	var models []mongo.WriteModel
 
-	for _, item := range updateList {
-		// Type assert item to UpdateComodity
-		product, ok := item.(UpdateComodity)
-		if !ok {
-			return errors.New("failed to cast item to UpdateComodity")
-		}
-
+	for _, product := range updateList {
 		// Create an update operation for each item in the updateList
 		filter := bson.M{"_id": product.ID}
 		update := bson.M{"$set": bson.M{"comodity": product.Comodity, "keyword": product.Keyword}}
@@ -224,7 +226,7 @@ func GetDataForTraining(offset, limit int) ([]TrainingData, error) {
 	findOptions := options.Find()
 	findOptions.SetSkip(int64(offset))
 	findOptions.SetLimit(int64(limit))
-	findOptions.SetProjection(bson.M{"title": 1, "category": 1, "comodity": 1, "keyword": 1, "_id": 1})
+	findOptions.SetProjection(bson.M{"title": 1, "keyword_id": 1, "_id": 1})
 
 	cursor, err := collection.Find(ctx, bson.M{}, findOptions)
 	if err != nil {

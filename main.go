@@ -10,10 +10,10 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
-	"strconv"
 
 	"crawler-index/db/mongodb"
 	"crawler-index/db/mysql"
@@ -22,6 +22,7 @@ import (
 	"crawler-index/models/mongodb/temp_item"
 	"crawler-index/models/mongodb/train_data"
 	"crawler-index/models/mysql/supervision_list"
+	"crawler-index/models/mysql/temp_item"
 
 	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/bson"
@@ -45,43 +46,42 @@ type Certified struct {
 func main() {
 	mysql.Init()
 	defer mysql.DB.Close()
-	// removeDuplicateData("temp_items")
+	removeDuplicateData("temp_items")
 	setCertified()
-
-	// validateCategory()
-	// storeTrainingData()
-	// removeDuplicateData("training_data")
-	// storeSupervision()
-	// removeDuplicateData("supervisions")
-	// storeIndexData()
-	// removeDuplicateData("products")
+	validateCategory()
+	storeTrainingData()
+	removeDuplicateData("training_data")
+	storeSupervision()
+	removeDuplicateData("supervisions")
+	storeIndexData()
+	removeDuplicateData("products")
 	fmt.Printf("Cleaning Complete")
 }
 
 // Extracts and formats BPOM number from the description
 func extractBPOM(description string) string {
-    // Updated pattern to match BPOM and POM codes with exactly two letters followed by a numeric string
-    pattern := `(?i)(?:BPOM|POM)\s*(?:No\.?\s*|:?\s*|RI\s*POM|RI\s*:)?\s*([A-Z]{2})[-.\s]*(\d{7,}|[A-Z0-9]{9,})`
+	// Updated pattern to match BPOM and POM codes with exactly two letters followed by a numeric or alphanumeric string
+	pattern := `(?i)(?:BPOM|POM)\s*(?:No\.?\s*|:?\s*|RI\s*POM|RI\s*:|NA)?\s*([A-Z]{2})[-.\s]*([A-Z0-9]{7,})`
 
-    // Compile regex
-    re := regexp.MustCompile(pattern)
+	// Compile regex
+	re := regexp.MustCompile(pattern)
 
-    // Find matches
-    matches := re.FindAllStringSubmatch(description, -1)
-    if len(matches) > 0 {
-        for _, match := range matches {
-            if len(match) > 2 {
-                code := match[1]
-                number := strings.ReplaceAll(match[2], " ", "")
+	// Find matches
+	matches := re.FindAllStringSubmatch(description, -1)
+	if len(matches) > 0 {
+		for _, match := range matches {
+			if len(match) > 2 {
+				code := match[1]
+				number := strings.ReplaceAll(match[2], " ", "")
 
-                // Ensure the number is numeric and the code is exactly two letters
-                if _, err := strconv.Atoi(number); err == nil || code == "NA" || code == "SD" {
-                    return code + number
-                }
-            }
-        }
-    }
-    return ""
+				// Check if the number is valid (must be numeric or alphanumeric based on the code)
+				if _, err := strconv.Atoi(number); err == nil || code == "NA" || code == "SD" {
+					return code + number
+				}
+			}
+		}
+	}
+	return ""
 }
 
 func setCertified() {
@@ -185,6 +185,7 @@ func storeIndexData() {
 func validateCategory() {
 	fmt.Println("Validate Category")
 
+	// Load environment variables from .env file
 	err := godotenv.Load()
 	if err != nil {
 		log.Fatalf("Error loading .env file: %v", err)
@@ -194,17 +195,19 @@ func validateCategory() {
 	offset := 0
 
 	for {
-		products, err := MongoTempItem.GetDataForTraining(offset, limit)
+		// Fetch products from MongoDB
+		products, err := MongoTempItem.GetAllProducts(offset, limit)
 		if err != nil {
 			log.Printf("Error fetching products: %v\n", err)
 			break
 		}
 
-		var updateList []interface{}
+		var updateList []MongoTempItem.UpdateComodity
+
+		// Iterate over fetched products
 		for _, p := range products {
-			data := map[string]string{
-				"product_title":    p.Title,
-				"crawler_category": p.Category,
+			data := map[string]interface{}{
+				"product_title": p.Title,
 			}
 
 			// Convert data to JSON
@@ -213,7 +216,7 @@ func validateCategory() {
 				log.Printf("Error marshalling data: %v\n", err)
 				return
 			}
-			fmt.Println("Data:", data)
+
 			// Make the POST request
 			resp, err := http.Post(os.Getenv("ML_CATEGORY_HOST"), "application/json", bytes.NewBuffer(jsonData))
 			if err != nil {
@@ -229,39 +232,45 @@ func validateCategory() {
 				continue // Continue with the next product
 			}
 
-			var obj MongoTrainingData.TrainingData
-
+			// Parse response into ValidateCategory struct
+			var obj MongoTempItem.ValidateCategory
 			err = json.Unmarshal(res, &obj)
 			if err != nil {
 				fmt.Println("Error:", err)
-				return
+				continue // Continue with the next product
 			}
-			// Convert response to string
 
-			if obj.Master_category != p.Comodity.Comodity {
-				updateList = append(updateList, MongoTempItem.UpdateComodity{
+			// Check if category needs to be updated
+			if p.Keyword_id != obj.Keyword_id && obj.Keyword_id > 0 {
+				// Get category details from MySQL
+				category, err := mysqlTempItem.GetCategory(int(obj.Keyword_id))
+				if err != nil {
+					fmt.Println("Error fetching category:", err)
+					continue // Continue with the next product
+				}
+
+				// Prepare UpdateComodity struct
+				updateComodity := MongoTempItem.UpdateComodity{
 					ID: p.ID,
-					Comodity: struct {
-						Comodity                  string
-						Sub_comodity              *string
-						Second_level_sub_comodity *string
-						Third_level_sub_comodity  *string
-					}{
-						obj.Master_category,
-						obj.Sub_master_category,
-						obj.Second_level_sub_master_category,
-						obj.Third_level_sub_master_category,
+					Comodity: MongoTempItem.Comodity{
+						Comodity:                  category.Comodity,
+						Sub_comodity:              &category.SubComodity,
+						Second_level_sub_comodity: &category.SecondLevelSubComodity,
+						Third_level_sub_comodity:  &category.ThirdLevelSubComodity,
 					},
-					Keyword: obj.Keyword,
-				})
+					Keyword: category.Keyword,
+				}
+
+				// Append to the list of updates
+				updateList = append(updateList, updateComodity)
 			}
 		}
 
+		// Perform the batch update if there are any items to update
 		if len(updateList) > 0 {
 			err = MongoTempItem.UpdateProductComodity(updateList)
 			if err != nil {
-				log.Printf("Failed to perform batch update: %v\n", err)
-				// Continue to next batch even if update fails
+				log.Printf("Error updating product commodities: %v\n", err)
 			}
 		}
 
@@ -270,7 +279,7 @@ func validateCategory() {
 			break
 		}
 
-		// Update offset for next iteration
+		// Update offset for the next iteration
 		offset += limit
 
 		// Optional: Add a sleep to avoid overloading the server
@@ -294,14 +303,9 @@ func storeTrainingData() {
 		var productResult []interface{}
 		for _, p := range products {
 			productResult = append(productResult, MongoTrainingData.TrainingData{
-				Product_title:                    p.Title,
-				Crawler_category:                 p.Category,
-				Master_category:                  p.Comodity.Comodity,
-				Sub_master_category:              p.Comodity.Sub_comodity,
-				Second_level_sub_master_category: p.Comodity.Second_level_sub_comodity,
-				Third_level_sub_master_category:  p.Comodity.Third_level_sub_comodity,
-				Keyword:                          p.Keyword,
-				Created_at:                       time.Now(),
+				Product_title: p.Title,
+				Keyword_id:    p.Keyword_id,
+				Created_at:    time.Now(),
 			})
 		}
 
@@ -409,7 +413,7 @@ func removeDuplicateData(collection_name string) {
 
 	switch collectionName {
 	case "training_data":
-		keys = bson.D{{"product_title", 1}, {"crawler_category", 1}, {"keyword", 1}}
+		keys = bson.D{{"product_title", 1}, {"keyword_id", 1}}
 	case "supervisions":
 		keys = bson.D{{"title", 1}, {"marketplace", 1}, {"supervision_category", 1}, {"seller", 1}}
 	default:
@@ -433,7 +437,7 @@ func removeDuplicateData(collection_name string) {
 	case "training_data":
 		pipeline = []bson.M{
 			{"$group": bson.M{
-				"_id":        bson.M{"product_title": "$product_title"},
+				"_id":        bson.M{"product_title": "$product_title", "keyword_id": "$keyword_id"},
 				"duplicates": bson.M{"$addToSet": "$_id"},
 				"count":      bson.M{"$sum": 1},
 			}},

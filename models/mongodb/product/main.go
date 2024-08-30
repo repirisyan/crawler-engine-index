@@ -43,6 +43,7 @@ type IndexProduct struct {
 	} `bson:"location"`
 	Certified struct {
 		Bpom                bool
+		Bpom_number         string
 		Sni                 bool
 		Halal               bool
 		Distribution_permit bool

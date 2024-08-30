@@ -14,14 +14,9 @@ import (
 )
 
 type TrainingData struct {
-	Product_title                    string
-	Crawler_category                 string
-	Master_category                  string
-	Sub_master_category              *string
-	Second_level_sub_master_category *string
-	Third_level_sub_master_category  *string
-	Keyword                          string
-	Created_at                       time.Time
+	Product_title string
+	Keyword_id    uint64
+	Created_at    time.Time
 }
 
 var client *mongo.Client
