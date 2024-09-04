@@ -78,7 +78,7 @@ type Certified struct {
 }
 
 type ValidateCategory struct {
-	Keyword_id uint64
+	Keyword_id string
 	Accuracy   float32
 }
 
