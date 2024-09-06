@@ -88,7 +88,7 @@ func createIndexModel(collectionName string) mongo.IndexModel {
 
 	switch collectionName {
 	case "training_data":
-		keys = bson.D{{Key: "product_title", Value: 1}, {Key: "keyword_id", Value: 1}}
+		keys = bson.D{{Key: "product_title", Value: 1}}
 	case "supervisions":
 		keys = bson.D{{Key: "title", Value: 1}, {Key: "marketplace", Value: 1}, {Key: "supervision_category", Value: 1}, {Key: "seller", Value: 1}}
 	default:

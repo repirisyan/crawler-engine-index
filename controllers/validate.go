@@ -93,10 +93,16 @@ func processProduct(product MongoTempItem.Product, updateList *[]MongoTempItem.U
 	}
 	defer resp.Body.Close()
 
-	// Read and parse the response
-	var obj MongoTempItem.ValidateCategory
-	if err := parseResponse(resp.Body, &obj); err != nil {
+	// Read and parse the response as a string
+	responseString,err := parseResponse(resp.Body)
+	if err != nil {
 		return fmt.Errorf("error parsing response: %w", err)
+	}
+
+	// If the response is a JSON string, unmarshal it into the struct
+	var obj MongoTempItem.ValidateCategory
+	if err := json.Unmarshal([]byte(responseString), &obj); err != nil {
+		return fmt.Errorf("error unmarshalling response string into struct: %w", err)
 	}
 
 	// Check if category needs to be updated
@@ -107,19 +113,18 @@ func processProduct(product MongoTempItem.Product, updateList *[]MongoTempItem.U
 	return nil
 }
 
-// parseResponse reads the response body and unmarshals it into the target struct
-func parseResponse(body io.Reader, target interface{}) error {
+
+// parseResponse reads the response body and returns it as a string
+func parseResponse(body io.Reader) (string, error) {
 	res, err := io.ReadAll(body)
 	if err != nil {
-		return fmt.Errorf("error reading response: %w", err)
+		return "", fmt.Errorf("error reading response: %w", err)
 	}
 
-	if err := json.Unmarshal(res, target); err != nil {
-		return fmt.Errorf("error unmarshalling response: %w", err)
-	}
-
-	return nil
+	// Return the response as a string
+	return string(res), nil
 }
+
 
 // checkAndUpdateCategory checks if the category needs updating and prepares the update list if needed
 func checkAndUpdateCategory(product MongoTempItem.Product, obj MongoTempItem.ValidateCategory, updateList *[]MongoTempItem.UpdateComodity) error {

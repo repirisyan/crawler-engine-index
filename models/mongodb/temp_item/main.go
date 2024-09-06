@@ -79,7 +79,6 @@ type Certified struct {
 
 type ValidateCategory struct {
 	Keyword_id string
-	Accuracy   float32
 }
 
 type TrainingData struct {
