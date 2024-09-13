@@ -9,8 +9,8 @@ import (
 func main() {
 	mysql.Init()
 	defer mysql.DB.Close()
-	// controllers.RemoveDuplicationData("temp_items")
-	// controllers.SetCertified()
+	controllers.RemoveDuplicationData("temp_items")
+	controllers.SetCertified()
 	controllers.ValidateCategory()
 	controllers.StoreTrainingData()
 	controllers.CleanTrainingData()
