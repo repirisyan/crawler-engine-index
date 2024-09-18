@@ -94,7 +94,7 @@ func processProduct(product MongoTempItem.Product, updateList *[]MongoTempItem.U
 	defer resp.Body.Close()
 
 	// Read and parse the response as a string
-	responseString,err := parseResponse(resp.Body)
+	responseString, err := parseResponse(resp.Body)
 	if err != nil {
 		return fmt.Errorf("error parsing response: %w", err)
 	}
@@ -113,7 +113,6 @@ func processProduct(product MongoTempItem.Product, updateList *[]MongoTempItem.U
 	return nil
 }
 
-
 // parseResponse reads the response body and returns it as a string
 func parseResponse(body io.Reader) (string, error) {
 	res, err := io.ReadAll(body)
@@ -124,7 +123,6 @@ func parseResponse(body io.Reader) (string, error) {
 	// Return the response as a string
 	return string(res), nil
 }
-
 
 // checkAndUpdateCategory checks if the category needs updating and prepares the update list if needed
 func checkAndUpdateCategory(product MongoTempItem.Product, obj MongoTempItem.ValidateCategory, updateList *[]MongoTempItem.UpdateComodity) error {

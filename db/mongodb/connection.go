@@ -28,7 +28,7 @@ func InitMongoDB(uri string) error {
 	clientOptions := options.Client().ApplyURI(uri).SetAuth(options.Credential{
 		Username:   os.Getenv("DB_MONGO_USER"),
 		Password:   os.Getenv("DB_MONGO_PASSWORD"),
-		AuthSource: os.Getenv("DB_MONGO_DATABASE"),
+		AuthSource: os.Getenv("MONGO_AUTH_SOURCE"),
 	})
 	client, err := mongo.Connect(context.Background(), clientOptions)
 	if err != nil {
