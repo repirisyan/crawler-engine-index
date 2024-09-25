@@ -19,5 +19,6 @@ func main() {
 	controllers.RemoveDuplicationData("supervisions")
 	controllers.StoreIndexData()
 	controllers.RemoveDuplicationData("products")
+	controllers.StoreSellerDistribution()
 	fmt.Printf("Cleaning Complete")
 }
