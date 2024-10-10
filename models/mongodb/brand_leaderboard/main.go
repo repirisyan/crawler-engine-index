@@ -15,7 +15,7 @@ import (
 type BrandLeaderboard struct {
 	Brand    string `bson:"brand"`
 	Marketplace string `bson:"marketplace"`
-	Seller      int    `bson:"seller"`
+	Total      int    `bson:"total"`
 	Year        int    `bson:"year"`
 	Month       int    `bson:"month"`
 	Date        string `bson:"date"`
