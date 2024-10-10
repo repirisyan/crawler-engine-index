@@ -113,6 +113,12 @@ type SellerDistributionGroupedResult struct {
 	Total       int    `bson:"total"`
 }
 
+type BrandLeaderboard struct {
+	Brand    string `bson:"brand"`
+	Marketplace string `bson:"marketplace"`
+	Total       int    `bson:"total"`
+}
+
 var client *mongo.Client
 var collection *mongo.Collection
 
@@ -316,6 +322,114 @@ func GetSellerDistribution() ([]SellerDistributionGroupedResult, error) {
 			Comodity:    comodity,
 			Marketplace: marketplace,
 			Total:       int(total),
+		})
+
+		// Increment batch counter and print progress
+		if len(results)%1000 == 0 { // Adjust based on your batch size
+			batchCount++
+			fmt.Printf("Processed %d batches\n", batchCount)
+		}
+	}
+
+	// Check if there was any error during iteration
+	if err := cursor.Err(); err != nil {
+		return nil, fmt.Errorf("cursor error: %v", err)
+	}
+
+	return results, nil
+}
+
+func GetBrandLeaderboard() ([]BrandLeaderboard, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	pipeline := mongo.Pipeline{
+		bson.D{{Key: "$match", Value: bson.D{
+        	{Key: "$and", Value: bson.A{
+            	bson.D{{Key: "brand", Value: bson.D{{Key: "$ne", Value: nil}}}},
+            	bson.D{{Key: "brand", Value: bson.D{{Key: "$ne", Value: ""}}}},
+        	}},
+    	}}},
+		bson.D{{Key: "$project", Value: bson.D{
+			{Key: "brand", Value: "$brand"},
+			{Key: "marketplace", Value: "$marketplace"},
+		}}},
+		bson.D{{Key: "$group", Value: bson.D{
+			{Key: "_id", Value: bson.D{
+				{Key: "brand", Value: "$brand"},
+				{Key: "marketplace", Value: "$marketplace"},
+			}},
+			{Key: "total", Value: bson.D{{Key: "$sum", Value: 1}}},
+		}}},
+	}
+
+	// Set aggregation options
+	opts := options.Aggregate().SetBatchSize(10000).SetAllowDiskUse(true)
+
+	// Perform the aggregation query
+	cursor, err := collection.Aggregate(ctx, pipeline, opts)
+	if err != nil {
+		return nil, fmt.Errorf("error during aggregation: %v", err)
+	}
+	defer cursor.Close(ctx)
+
+	var results []BrandLeaderboard
+	batchCount := 0 // Batch counter
+
+	for cursor.Next(ctx) {
+		var raw bson.M
+		if err := cursor.Decode(&raw); err != nil {
+			return nil, fmt.Errorf("error decoding result: %v", err)
+		}
+
+		// Safely extract the values with logging on failure
+		var brand, marketplace string
+		var total int32
+
+		// Extract brand
+		if val, ok := raw["_id"].(bson.M)["brand"]; ok {
+			if b, ok := val.(string); ok {
+				brand = b
+			} else {
+				fmt.Printf("Warning: expected string for brand, got %T\n", val)
+				continue // Skip this entry
+			}
+		} else {
+			fmt.Println("Warning: brand not found")
+			continue // Skip this entry
+		}
+
+		// Extract marketplace
+		if val, ok := raw["_id"].(bson.M)["marketplace"]; ok {
+			if m, ok := val.(string); ok {
+				marketplace = m
+			} else {
+				fmt.Printf("Warning: expected string for marketplace, got %T\n", val)
+				continue // Skip this entry
+			}
+		} else {
+			fmt.Println("Warning: marketplace not found")
+			continue // Skip this entry
+		}
+
+		// Extract total
+		if val, ok := raw["total"]; ok {
+			if t, ok := val.(int32); ok {
+				total = t
+			} else {
+				fmt.Printf("Warning: expected int32 for total, got %T\n", val)
+				continue // Skip this entry
+			}
+		} else {
+			fmt.Println("Warning: total not found")
+			continue // Skip this entry
+		}
+
+		// Append the result to the slice
+		results = append(results, BrandLeaderboard{
+			Brand:      brand,
+			Marketplace: marketplace,
+			Total:      int(total), // Convert int32 to int
 		})
 
 		// Increment batch counter and print progress

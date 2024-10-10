@@ -1,5 +1,4 @@
-// models/mongodb/getTempItem.go
-package SellerDistribution
+package BrandLeaderboard
 
 import (
 	"context"
@@ -13,8 +12,8 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-type SellerDistribution struct {
-	Comodity    string `bson:"comodity"`
+type BrandLeaderboard struct {
+	Brand    string `bson:"brand"`
 	Marketplace string `bson:"marketplace"`
 	Seller      int    `bson:"seller"`
 	Year        int    `bson:"year"`
@@ -51,14 +50,14 @@ func init() {
 	}
 
 	// Set the collection
-	collection = client.Database(os.Getenv("DB_MONGO_DATABASE")).Collection("seller_distributions")
+	collection = client.Database(os.Getenv("DB_MONGO_DATABASE")).Collection("brand_leaderboards")
 }
 
-func StoreSellerDistribution(sellerDistribution []interface{}) error {
-	_, err := collection.InsertMany(context.TODO(), sellerDistribution)
+func StoreBrandLeaderboard(brandLeaderboard []interface{}) error {
+	_, err := collection.InsertMany(context.TODO(), brandLeaderboard)
 
 	if err != nil {
-		return fmt.Errorf("error inserting seller distribution: %v", err)
+		return fmt.Errorf("error inserting brand leaderboard: %v", err)
 	}
 	return nil
 }
