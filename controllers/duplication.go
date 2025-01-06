@@ -47,41 +47,56 @@ func RemoveDuplicationData(collectionName string) {
 		log.Fatalf("Failed to create index: %v", err)
 	}
 
-	// Build aggregation pipeline to identify duplicates
-	pipeline := buildAggregationPipeline(collectionName)
-
-	// Perform aggregation to identify duplicates
-	cursor, err := collection.Aggregate(context.Background(), pipeline)
-	if err != nil {
-		log.Fatalf("Aggregation error: %v", err)
-	}
-	defer cursor.Close(context.Background())
-
-	// Iterate over the cursor to delete duplicates
+	// Define chunk size and initialize variables for processing
+	chunkSize := 1000
+	skip := 0
 	var wg sync.WaitGroup
-	for cursor.Next(context.Background()) {
-		var result struct {
-			ID         bson.M        `bson:"_id"`
-			Duplicates []interface{} `bson:"duplicates"`
-			Count      int           `bson:"count"`
-		}
-		if err := cursor.Decode(&result); err != nil {
-			log.Printf("Error decoding result: %v", err)
-			continue
+
+	// Loop through the collection in chunks
+	for {
+		// Build aggregation pipeline with skip and limit
+		pipeline := buildAggregationPipeline(collectionName, skip, chunkSize)
+
+		// Perform aggregation to identify duplicates
+		cursor, err := collection.Aggregate(context.Background(), pipeline)
+		if err != nil {
+			log.Fatalf("Aggregation error: %v", err)
 		}
 
-		// Remove duplicates, keeping one entry
-		if len(result.Duplicates) > 1 {
-			removeDuplicates(collection, result.Duplicates[1:], &wg)
+		// If no more results, stop processing
+		if !cursor.Next(context.Background()) {
+			break
 		}
-	}
-	wg.Wait()
 
-	if err := cursor.Err(); err != nil {
-		log.Fatalf("Cursor error: %v", err)
+		// Process the current chunk
+		for cursor.Next(context.Background()) {
+			var result struct {
+				ID         bson.M        `bson:"_id"`
+				Duplicates []interface{} `bson:"duplicates"`
+				Count      int           `bson:"count"`
+			}
+			if err := cursor.Decode(&result); err != nil {
+				log.Printf("Error decoding result: %v", err)
+				continue
+			}
+
+			// Remove duplicates, keeping one entry
+			if len(result.Duplicates) > 1 {
+				removeDuplicates(collection, result.Duplicates[1:], &wg)
+			}
+		}
+
+		// Wait for all goroutines to finish
+		wg.Wait()
+
+		// Move to the next chunk
+		skip += chunkSize
+		cursor.Close(context.Background())
 	}
+
 	fmt.Printf("Duplicate removal completed for %s.\n", collectionName)
 }
+
 
 func createIndexModel(collectionName string) mongo.IndexModel {
 	var keys bson.D
@@ -102,12 +117,14 @@ func createIndexModel(collectionName string) mongo.IndexModel {
 	}
 }
 
-func buildAggregationPipeline(collectionName string) []bson.M {
+func buildAggregationPipeline(collectionName string, skip, limit int) []bson.M {
 	var pipeline []bson.M
 
 	switch collectionName {
 	case "training_data":
 		pipeline = []bson.M{
+			{"$skip": skip},
+			{"$limit": limit},
 			{"$group": bson.M{
 				"_id":        bson.M{"product_title": "$product_title", "keyword_id": "$keyword_id"},
 				"duplicates": bson.M{"$addToSet": "$_id"},
@@ -117,6 +134,8 @@ func buildAggregationPipeline(collectionName string) []bson.M {
 		}
 	case "supervisions":
 		pipeline = []bson.M{
+			{"$skip": skip},
+			{"$limit": limit},
 			{"$group": bson.M{
 				"_id":        bson.M{"title": "$title", "marketplace": "$marketplace", "supervision_category": "$supervision_category", "seller": "$seller"},
 				"duplicates": bson.M{"$addToSet": "$_id"},
@@ -126,6 +145,8 @@ func buildAggregationPipeline(collectionName string) []bson.M {
 		}
 	default:
 		pipeline = []bson.M{
+			{"$skip": skip},
+			{"$limit": limit},
 			{"$group": bson.M{
 				"_id":        bson.M{"title": "$title", "marketplace": "$marketplace", "seller": "$seller"},
 				"duplicates": bson.M{"$addToSet": "$_id"},

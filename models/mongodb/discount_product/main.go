@@ -1,4 +1,4 @@
-package DiscountChartSeller
+package DiscountProduct
 
 import (
 	"context"
@@ -12,9 +12,10 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-type BrandLeaderboard struct {
-	Total_seller    string `bson:"total_seller"`
-	Discount_seller string `bson:"discount_seller"`
+type DiscountProduct struct {
+	Discount *uint32 `bson:"discount"`
+	Marketplace string `bson:"marketplace"`
+	Total       int    `bson:"total"`
 	Year        int    `bson:"year"`
 	Month       int    `bson:"month"`
 	Date        string `bson:"date"`
@@ -49,14 +50,14 @@ func init() {
 	}
 
 	// Set the collection
-	collection = client.Database(os.Getenv("DB_MONGO_DATABASE")).Collection("discount_seller")
+	collection = client.Database(os.Getenv("DB_MONGO_DATABASE")).Collection("discount_products")
 }
 
-func StoreDiscountSeller(discountSeller []interface{}) error {
-	_, err := collection.InsertMany(context.TODO(), discountSeller)
+func StoreDiscountProduct(discountProduct []interface{}) error {
+	_, err := collection.InsertMany(context.TODO(), discountProduct)
 
 	if err != nil {
-		return fmt.Errorf("error inserting discount seller: %v", err)
+		return fmt.Errorf("error inserting discount product: %v", err)
 	}
 	return nil
 }
