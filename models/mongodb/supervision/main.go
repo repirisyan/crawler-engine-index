@@ -51,6 +51,7 @@ type Product struct {
 		Distribution_permit bool
 	}
 	Supervision_keyword string
+	Supervision_label   string
 	Comodity            struct {
 		Comodity                  string
 		Sub_comodity              *string

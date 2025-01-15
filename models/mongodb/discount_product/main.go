@@ -13,12 +13,12 @@ import (
 )
 
 type DiscountProduct struct {
-	Discount *uint32 `bson:"discount"`
-	Marketplace string `bson:"marketplace"`
-	Total       int    `bson:"total"`
-	Year        int    `bson:"year"`
-	Month       int    `bson:"month"`
-	Date        string `bson:"date"`
+	Discount    *uint32 `bson:"discount"`
+	Marketplace string  `bson:"marketplace"`
+	Total       int     `bson:"total"`
+	Year        int     `bson:"year"`
+	Month       int     `bson:"month"`
+	Date        string  `bson:"date"`
 }
 
 var client *mongo.Client

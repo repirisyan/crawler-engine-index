@@ -48,6 +48,7 @@ func StoreSupervision() {
 					Keyword:             product.Keyword,
 					Certified:           product.Certified,
 					Supervision_keyword: svl.Name,
+					Supervision_label:   svl.Category,
 					Marketplace:         product.Marketplace,
 					Published_at:        product.Published_at,
 					Status:              Status{Value: false},

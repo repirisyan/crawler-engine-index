@@ -24,7 +24,7 @@ func StoreDiscountProduct() {
 		discountProductResult = append(discountProductResult, DiscountProduct.DiscountProduct{
 			Discount:    p.Discount,
 			Marketplace: p.Marketplace,
-			Total:      p.Total,
+			Total:       p.Total,
 			Year:        time.Now().Year(),
 			Month:       int(time.Now().Month()),
 			Date:        time.Now().Format("2006-01-02 15:04:05"),

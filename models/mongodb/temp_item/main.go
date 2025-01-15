@@ -114,15 +114,15 @@ type SellerDistributionGroupedResult struct {
 }
 
 type BrandLeaderboard struct {
-	Brand    string `bson:"brand"`
+	Brand       string `bson:"brand"`
 	Marketplace string `bson:"marketplace"`
 	Total       int    `bson:"total"`
 }
 
 type DiscountProduct struct {
-	Discount *uint32 `bson:"discount"`
-	Marketplace string `bson:"marketplace"`
-	Total       int    `bson:"total"`
+	Discount    *uint32 `bson:"discount"`
+	Marketplace string  `bson:"marketplace"`
+	Total       int     `bson:"total"`
 }
 
 var client *mongo.Client
@@ -351,11 +351,11 @@ func GetBrandLeaderboard() ([]BrandLeaderboard, error) {
 
 	pipeline := mongo.Pipeline{
 		bson.D{{Key: "$match", Value: bson.D{
-        	{Key: "$and", Value: bson.A{
-            	bson.D{{Key: "brand", Value: bson.D{{Key: "$ne", Value: nil}}}},
-            	bson.D{{Key: "brand", Value: bson.D{{Key: "$ne", Value: ""}}}},
-        	}},
-    	}}},
+			{Key: "$and", Value: bson.A{
+				bson.D{{Key: "brand", Value: bson.D{{Key: "$ne", Value: nil}}}},
+				bson.D{{Key: "brand", Value: bson.D{{Key: "$ne", Value: ""}}}},
+			}},
+		}}},
 		bson.D{{Key: "$project", Value: bson.D{
 			{Key: "brand", Value: "$brand"},
 			{Key: "marketplace", Value: "$marketplace"},
@@ -433,9 +433,9 @@ func GetBrandLeaderboard() ([]BrandLeaderboard, error) {
 
 		// Append the result to the slice
 		results = append(results, BrandLeaderboard{
-			Brand:      brand,
+			Brand:       brand,
 			Marketplace: marketplace,
-			Total:      int(total), // Convert int32 to int
+			Total:       int(total), // Convert int32 to int
 		})
 
 		// Increment batch counter and print progress
@@ -459,12 +459,12 @@ func GetDiscountProduct() ([]DiscountProduct, error) {
 
 	pipeline := mongo.Pipeline{
 		bson.D{{Key: "$match", Value: bson.D{
-        	{Key: "$and", Value: bson.A{
-            	bson.D{{Key: "price.discount", Value: bson.D{{Key: "$ne", Value: nil}}}},
-            	bson.D{{Key: "price.discount", Value: bson.D{{Key: "$ne", Value: ""}}}},
-            	bson.D{{Key: "price.discount", Value: bson.D{{Key: "$ne", Value: 0}}}},
-        	}},
-    	}}},
+			{Key: "$and", Value: bson.A{
+				bson.D{{Key: "price.discount", Value: bson.D{{Key: "$ne", Value: nil}}}},
+				bson.D{{Key: "price.discount", Value: bson.D{{Key: "$ne", Value: ""}}}},
+				bson.D{{Key: "price.discount", Value: bson.D{{Key: "$ne", Value: 0}}}},
+			}},
+		}}},
 		// Project relevant fields
 		bson.D{{Key: "$project", Value: bson.D{
 			{Key: "discount", Value: "$price.discount"},

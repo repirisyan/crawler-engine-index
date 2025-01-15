@@ -5,7 +5,8 @@ import (
 )
 
 type Supervision struct {
-	Name string
+	Name     string
+	Category string
 }
 
 func GetAllData() ([]Supervision, error) {

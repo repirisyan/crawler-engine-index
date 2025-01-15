@@ -22,9 +22,9 @@ func StoreBrandLeaderboard() {
 	var brandLeaderBoardResult []interface{}
 	for _, p := range results {
 		brandLeaderBoardResult = append(brandLeaderBoardResult, BrandLeaderboard.BrandLeaderboard{
-			Brand:    p.Brand,
+			Brand:       p.Brand,
 			Marketplace: p.Marketplace,
-			Total:      p.Total,
+			Total:       p.Total,
 			Year:        time.Now().Year(),
 			Month:       int(time.Now().Month()),
 			Date:        time.Now().Format("2006-01-02 15:04:05"),
