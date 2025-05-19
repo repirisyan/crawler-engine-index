@@ -2,23 +2,20 @@ package main
 
 import (
 	"crawler-index/controllers"
-	"crawler-index/db/mysql"
+	pgdb "crawler-index/db/postgres"
+	redisdb "crawler-index/db/redis"
 	"fmt"
 )
 
 func main() {
-	mysql.Init()
-	defer mysql.DB.Close()
-	controllers.RemoveDuplicationData("temp_items")
+	redisdb.InitRedis()
+	pgdb.InitPostgres()
+	controllers.RemoveDuplicationFromRedis()
 	controllers.SetCertified()
-	controllers.ValidateCategory()
-	controllers.StoreTrainingData()
-	controllers.CleanTrainingData()
-	controllers.RemoveDuplicationData("training_data")
-	controllers.StoreSupervision()
-	controllers.RemoveDuplicationData("supervisions")
+	// controllers.ValidateCategory()
+	// controllers.StoreTrainingData()
+	// controllers.CleanTrainingData()
 	controllers.StoreIndexData()
-	controllers.RemoveDuplicationData("products")
 	controllers.StoreSellerDistribution()
 	controllers.StoreBrandLeaderboard()
 	controllers.StoreDiscountProduct()

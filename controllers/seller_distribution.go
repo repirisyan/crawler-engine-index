@@ -5,29 +5,28 @@ import (
 	"log"
 	"time"
 
-	SellerDistribution "crawler-index/models/mongodb/seller_distribution"
-	MongoTempItem "crawler-index/models/mongodb/temp_item"
+	Crawler "crawler-index/models/postgres/crawler"
+	SellerDistribution "crawler-index/models/postgres/seller_distribution"
 )
 
 // Store Data from temp_item to products in mongodb
 func StoreSellerDistribution() {
 	fmt.Println("Store Seller Distribution Data")
 
-	results, err := MongoTempItem.GetSellerDistribution()
+	results, err := Crawler.GetSellerDistribution()
 
 	if err != nil {
 		fmt.Printf("Error fetching seller distribution: %v\n", err)
 	}
 	// Convert struct to interface
-	var sellerDistributionResult []interface{}
+	var sellerDistributionResult []SellerDistribution.SellerDistribution
 	for _, p := range results {
 		sellerDistributionResult = append(sellerDistributionResult, SellerDistribution.SellerDistribution{
-			Comodity:    p.Comodity,
-			Marketplace: p.Marketplace,
-			Seller:      p.Total,
-			Year:        time.Now().Year(),
-			Month:       int(time.Now().Month()),
-			Date:        time.Now().Format("2006-01-02 15:04:05"),
+			Comodity_id:    p.Comodity_id,
+			Marketplace_id: p.Marketplace_id,
+			Seller:         p.Total,
+			Year:           time.Now().Year(),
+			Month:          uint8(time.Now().Month()),
 		})
 	}
 

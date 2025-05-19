@@ -7,16 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	"crawler-index/models/mongodb/temp_item" // Import the correct MongoDB package
+	Crawler "crawler-index/models/postgres/crawler"
 )
-
-type Certified struct {
-	Bpom                bool
-	Bpom_number         string
-	Sni                 bool
-	Halal               bool
-	Distribution_permit bool
-}
 
 // Extracts and formats BPOM number from the description
 func extractBPOM(description string) string {
@@ -89,7 +81,7 @@ func SetCertified() {
 	// fmt.Println("Extracted BPOM Number:", result)
 	for {
 		// Fetch products in batches from the database
-		products, err := MongoTempItem.GetAllProducts(offset, limit) // Correct the package name if needed
+		products, err := Crawler.GetAllProductCertifications(offset, limit) // Correct the package name if needed
 		if err != nil {
 			fmt.Printf("Error fetching products: %v\n", err)
 			break
@@ -97,33 +89,29 @@ func SetCertified() {
 
 		if len(products) == 0 {
 			// No more records to fetch
+			fmt.Printf("offset : %v", offset)
 			break
 		}
 
 		var productResult []interface{}
 		for _, p := range products {
-			if p.Description == nil {
-				continue // Skip products without a description
-			}
-
-			bpomNumber := extractBPOM(*p.Description)
+			desc := strings.ToLower(p.Description) // Direct use of p.Description (no dereference needed)
+			bpomNumber := extractBPOM(p.Description)
 
 			// Append the product with its certification data
-			productResult = append(productResult, MongoTempItem.Certified{
-				ID: p.ID,
-				Certified: Certified{
-					Bpom:                strings.Contains(strings.ToLower(*p.Description), "bpom"),
-					Bpom_number:         bpomNumber,
-					Sni:                 strings.Contains(strings.ToLower(*p.Description), "sni"),
-					Halal:               strings.Contains(strings.ToLower(*p.Description), "halal"),
-					Distribution_permit: strings.Contains(strings.ToLower(*p.Description), "ijin edar"),
-				},
+			productResult = append(productResult, Crawler.Certified{
+				ID:                  p.ID,
+				Bpom:                strings.Contains(desc, "bpom"),
+				Bpom_number:         bpomNumber,
+				Sni:                 strings.Contains(desc, "sni"),
+				Halal:               strings.Contains(desc, "halal"),
+				Distribution_permit: strings.Contains(desc, "ijin edar"),
 			})
 		}
 
 		if len(productResult) > 0 {
 			// Update products with certified information
-			err = MongoTempItem.SetCertified(productResult)
+			err = Crawler.SetCertified(productResult)
 			if err != nil {
 				log.Printf("Failed to set certification: %v\n", err)
 				continue
