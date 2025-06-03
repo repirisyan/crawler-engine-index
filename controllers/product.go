@@ -8,7 +8,7 @@ import (
 	ProductIndex "crawler-index/models/postgres/product_index"
 )
 
-// Store Data from temp_item to products in mongodb
+// Store Data from temp_item to indexing data
 func StoreIndexData() {
 	fmt.Println("Store Index Data")
 
