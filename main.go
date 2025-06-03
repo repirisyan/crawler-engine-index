@@ -19,5 +19,6 @@ func main() {
 	controllers.StoreSellerDistribution()
 	controllers.StoreBrandLeaderboard()
 	controllers.StoreDiscountProduct()
+	redisdb.FlushAllDB()
 	fmt.Printf("Cleaning Complete")
 }

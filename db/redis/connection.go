@@ -30,3 +30,13 @@ func InitRedis() {
 func GetRedisClient() *redis.Client {
 	return Client
 }
+
+func FlushAllDB(){
+	// Flush all keys in all databases
+	err := Client.FlushAll(Ctx).Err()
+	if err != nil {
+		panic(err)
+	}
+
+	log.Println("Redis flushed successfully")	
+}
