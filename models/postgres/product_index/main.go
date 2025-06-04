@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"log"
+	"time"
 
 	pgdb "crawler-index/db/postgres"
 )
@@ -59,8 +60,8 @@ func StoreProductIndex(products []Product) error {
 	}
 
 	// Prepare the insert query (including created_at and updated_at)
-	query := `INSERT INTO products (title, brand, price, original_price, discount, rating, rating_count, sold, seller_name, seller_url, location, weight, description, marketplace_id, comodity_id, keyword_id, link, image, bpom, bpom_number, sni, halal, distribution_permit)
-				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23) ON CONFLICT (title, seller_name, marketplace_id) DO NOTHING;`
+	query := `INSERT INTO products (title, brand, price, original_price, discount, rating, rating_count, sold, seller_name, seller_url, location, weight, description, marketplace_id, comodity_id, keyword_id, link, image, bpom, bpom_number, sni, halal, distribution_permit, created_at)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24) ON CONFLICT (title, seller_name, marketplace_id) DO NOTHING;`
 
 	// Insert each product into the database
 	for _, product := range products {
@@ -102,6 +103,7 @@ func StoreProductIndex(products []Product) error {
 			product.Sni,
 			product.Halal,
 			product.Distribution_permit,
+			time.Now(),
 		)
 		if err != nil {
 			tx.Rollback(Ctx) // Rollback transaction if any error occurs

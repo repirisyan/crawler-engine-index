@@ -48,7 +48,7 @@ type Product struct {
 	Sni                 bool           `json:"sni,omitempty"`
 	Halal               bool           `json:"halal,omitempty"`
 	Distribution_permit bool           `json:"distribution_permit,omitempty"`
-	Created_at          string         `json:"created_at"`
+	Created_at          time.Time         `json:"created_at"`
 }
 
 type Certified struct {
@@ -152,9 +152,9 @@ func SaveProductsToPostgres(products []Product) error {
 func GetAllProducts(offset int, limit int) ([]Product, error) {
 	conn := pgdb.GetPostgresPool()
 
-	query := `SELECT id, title, brand, image, price, original_price, discount, rating, rating_count,
+	query := `SELECT id, title, brand, image, price, original_price, discount, rating, rating_count, sold,
        seller_name, seller_url, location, marketplace_id, keyword_id, comodity_id,
-       description, link, weight, COALESCE(bpom, false), bpom_number, COALESCE(sni, false), COALESCE(halal, false), COALESCE(distribution_permit, false) FROM crawlers LIMIT $2 OFFSET $1`
+       description, link, weight, COALESCE(bpom, false), bpom_number, COALESCE(sni, false), COALESCE(halal, false), COALESCE(distribution_permit, false), created_at FROM crawlers LIMIT $2 OFFSET $1`
 
 	rows, err := conn.Query(Ctx, query, offset, limit)
 
@@ -177,6 +177,7 @@ func GetAllProducts(offset int, limit int) ([]Product, error) {
 			&product.Discount,
 			&product.Rating,
 			&product.RatingCount,
+			&product.Sold,
 			&product.SellerName,
 			&product.SellerURL,
 			&product.Location,
@@ -191,6 +192,7 @@ func GetAllProducts(offset int, limit int) ([]Product, error) {
 			&product.Sni,
 			&product.Halal,
 			&product.Distribution_permit,
+			&product.Created_at,
 		)
 		if err != nil {
 			return nil, err
