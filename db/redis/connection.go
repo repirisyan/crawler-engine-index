@@ -31,12 +31,12 @@ func GetRedisClient() *redis.Client {
 	return Client
 }
 
-func FlushAllDB(){
+func FlushAllDB() {
 	// Flush all keys in all databases
 	err := Client.FlushAll(Ctx).Err()
 	if err != nil {
 		panic(err)
 	}
 
-	log.Println("Redis flushed successfully")	
+	log.Println("Redis flushed successfully")
 }

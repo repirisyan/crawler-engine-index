@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 )
 
@@ -48,7 +49,7 @@ type Product struct {
 	Sni                 bool           `json:"sni,omitempty"`
 	Halal               bool           `json:"halal,omitempty"`
 	Distribution_permit bool           `json:"distribution_permit,omitempty"`
-	Created_at          time.Time         `json:"created_at"`
+	Created_at          time.Time      `json:"created_at"`
 }
 
 type Certified struct {
@@ -207,6 +208,64 @@ func GetAllProducts(offset int, limit int) ([]Product, error) {
 	return products, nil
 }
 
+func SearchProduct(offset int, limit int, keyword string) ([]Product, error) {
+	conn := pgdb.GetPostgresPool()
+
+	query := `SELECT id, title, brand, image, price, original_price, discount, rating, rating_count, sold,
+       seller_name, seller_url, location, marketplace_id, keyword_id, comodity_id,
+       description, link, weight, COALESCE(bpom, false), bpom_number, COALESCE(sni, false), COALESCE(halal, false), COALESCE(distribution_permit, false), created_at FROM crawlers WHERE title ILIKE '%' || $3::text || '%' LIMIT $2 OFFSET $1`
+
+	rows, err := conn.Query(Ctx, query, offset, limit, keyword)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	var products []Product
+	for rows.Next() {
+		var product Product
+		err := rows.Scan(
+			&product.ID,
+			&product.Title,
+			&product.Brand,
+			&product.Image,
+			&product.Price,
+			&product.OriginalPrice,
+			&product.Discount,
+			&product.Rating,
+			&product.RatingCount,
+			&product.Sold,
+			&product.SellerName,
+			&product.SellerURL,
+			&product.Location,
+			&product.MarketplaceID,
+			&product.KeywordID,
+			&product.ComodityID,
+			&product.Description,
+			&product.Link,
+			&product.Weight,
+			&product.Bpom,
+			&product.Bpom_number,
+			&product.Sni,
+			&product.Halal,
+			&product.Distribution_permit,
+			&product.Created_at,
+		)
+		if err != nil {
+			return nil, err
+		}
+		products = append(products, product)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return products, nil
+}
+
 func GetAllProductCertifications(offset int, limit int) ([]Product, error) {
 	conn := pgdb.GetPostgresPool()
 
@@ -270,6 +329,37 @@ func SetCertified(productResult []interface{}) error {
 			log.Printf("failed to update product: %v", err)
 			return err
 		}
+	}
+
+	return nil
+}
+
+func SetSupervised(productIDs []uint64) error {
+	conn := pgdb.GetPostgresPool()
+
+	if len(productIDs) == 0 {
+		return nil
+	}
+
+	// Create placeholders like $1, $2, ..., $n
+	placeholders := make([]string, len(productIDs))
+	args := make([]interface{}, len(productIDs))
+	for i, id := range productIDs {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = id
+	}
+
+	query := fmt.Sprintf(`
+		UPDATE crawlers 
+		SET flag = true 
+		WHERE id IN (%s)
+	`, strings.Join(placeholders, ", "))
+
+	_, err := conn.Exec(Ctx, query, args...)
+
+	if err != nil {
+		log.Printf("failed to update product: %v", err)
+		return err
 	}
 
 	return nil
