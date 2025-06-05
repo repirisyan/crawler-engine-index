@@ -22,7 +22,7 @@ func StoreSupervisionData() {
 
 	for _, supervision := range supervisions {
 		offset := 0
-		for{
+		for {
 			products, err := Crawler.SearchProduct(offset, limit, supervision.Name)
 			if err != nil {
 				fmt.Printf("Error fetching products: %v\n", err)

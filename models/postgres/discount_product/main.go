@@ -12,6 +12,7 @@ var Ctx = context.Background() // Ensure you have a context here
 type DiscountSummaries struct {
 	Discount       float32 `bson:"discount"`
 	Marketplace_id uint64  `json:"marketplace_id"`
+	Comodity_id    uint64  `json:"comodity_id"`
 	Total          uint32  `bson:"total"`
 	Year           int     `bson:"year"`
 	Month          uint8   `bson:"month"`
@@ -29,14 +30,15 @@ func StoreDiscountSummaries(discounts []DiscountSummaries) error {
 	}
 
 	// Prepare the insert query (including created_at and updated_at)
-	query := `INSERT INTO product_discount_summaries (discount, marketplace_id, total_product, year, month)
-				VALUES ($1, $2, $3, $4, $5)`
+	query := `INSERT INTO product_discount_summaries (discount, marketplace_id,comodity_id, total_product, year, month)
+				VALUES ($1, $2, $3, $4, $5, $6)`
 
 	// Insert each product into the database
 	for _, discount := range discounts {
 		_, err = tx.Exec(Ctx, query,
 			discount.Discount,
 			discount.Marketplace_id,
+			discount.Comodity_id,
 			discount.Total,
 			discount.Year,
 			discount.Month,

@@ -89,7 +89,6 @@ func SetCertified() {
 
 		if len(products) == 0 {
 			// No more records to fetch
-			fmt.Printf("offset : %v", offset)
 			break
 		}
 

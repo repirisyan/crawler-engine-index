@@ -101,7 +101,6 @@ func RemoveDuplicationFromRedis() {
 			Description:   product.Description,
 			Link:          product.Link,
 			Weight:        weight,
-			Created_at:    product.Created_at,
 		})
 
 	}

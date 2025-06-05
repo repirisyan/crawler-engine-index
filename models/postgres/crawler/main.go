@@ -49,7 +49,7 @@ type Product struct {
 	Sni                 bool           `json:"sni,omitempty"`
 	Halal               bool           `json:"halal,omitempty"`
 	Distribution_permit bool           `json:"distribution_permit,omitempty"`
-	Created_at          time.Time      `json:"created_at"`
+	Created_at          time.Time      `json:"created_at,omitempty"`
 }
 
 type Certified struct {
@@ -64,12 +64,14 @@ type Certified struct {
 type BrandLeaderboard struct {
 	Brand          string `json:"brand"`
 	Marketplace_id uint64 `json:"marketplace_id"`
+	Comodity_id    uint64 `json:"comodity_id"`
 	Total          uint32 `json:"total"`
 }
 
 type DiscountProduct struct {
 	Discount       float32 `bson:"discount"`
 	Marketplace_id uint64  `bson:"marketplace"`
+	Comodity_id    uint64  `bson:"comodity"`
 	Total          uint32  `bson:"total"`
 }
 
@@ -129,7 +131,7 @@ func SaveProductsToPostgres(products []Product) error {
 			product.KeywordID,     // keyword_id
 			product.Link,          // link
 			imageJSON,             // image (JSON),
-			product.Created_at,
+			time.Now(),
 			time.Now(),
 		)
 		if err != nil {
@@ -370,10 +372,10 @@ func GetBrandLeaderboard() ([]BrandLeaderboard, error) {
 
 	// SQL query to aggregate the leaderboard by brand and marketplace
 	query := `
-		SELECT brand, marketplace_id, COUNT(*) as total
+		SELECT brand, marketplace_id,comodity_id, COUNT(*) as total
 		FROM crawlers
 		WHERE brand IS NOT NULL AND brand != ''
-		GROUP BY brand, marketplace_id
+		GROUP BY brand, marketplace_id, comodity_id
 		ORDER BY total DESC
 	`
 
@@ -391,10 +393,11 @@ func GetBrandLeaderboard() ([]BrandLeaderboard, error) {
 	for rows.Next() {
 		var brand string
 		var marketplace_id uint64
+		var comodity_id uint64
 		var total uint32
 
 		// Scan the values into variables
-		if err := rows.Scan(&brand, &marketplace_id, &total); err != nil {
+		if err := rows.Scan(&brand, &marketplace_id, &comodity_id, &total); err != nil {
 			return nil, fmt.Errorf("error scanning row: %v", err)
 		}
 
@@ -402,6 +405,7 @@ func GetBrandLeaderboard() ([]BrandLeaderboard, error) {
 		results = append(results, BrandLeaderboard{
 			Brand:          brand,
 			Marketplace_id: marketplace_id,
+			Comodity_id:    comodity_id,
 			Total:          total,
 		})
 
@@ -426,7 +430,8 @@ func GetDiscountProduct() ([]DiscountProduct, error) {
 	query := `
 		SELECT 
 			discount, 
-			marketplace_id, 
+			marketplace_id,
+			comodity_id, 
 			COUNT(*) AS total
 		FROM 
 			crawlers
@@ -434,7 +439,7 @@ func GetDiscountProduct() ([]DiscountProduct, error) {
 			discount IS NOT NULL 
 			AND discount > 0
 		GROUP BY 
-			discount, marketplace_id;
+			discount, marketplace_id, comodity_id;
 	`
 
 	rows, err := conn.Query(Ctx, query)
@@ -446,16 +451,18 @@ func GetDiscountProduct() ([]DiscountProduct, error) {
 	var results []DiscountProduct
 	for rows.Next() {
 		var marketplace_id uint64
+		var comodity_id uint64
 		var total uint32
 
 		var discountVal float32
-		if err := rows.Scan(&discountVal, &marketplace_id, &total); err != nil {
+		if err := rows.Scan(&discountVal, &marketplace_id, &comodity_id, &total); err != nil {
 			return nil, fmt.Errorf("scan error: %w", err)
 		}
 
 		results = append(results, DiscountProduct{
 			Discount:       discountVal,
 			Marketplace_id: marketplace_id,
+			Comodity_id:    comodity_id,
 			Total:          total,
 		})
 	}

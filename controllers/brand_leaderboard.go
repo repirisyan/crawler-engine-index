@@ -24,6 +24,7 @@ func StoreBrandLeaderboard() {
 		brandLeaderBoardResult = append(brandLeaderBoardResult, BrandLeaderboard.BrandLeaderboard{
 			Brand:          p.Brand,
 			Marketplace_id: p.Marketplace_id,
+			Comodity_id:    p.Comodity_id,
 			Total:          p.Total,
 			Year:           time.Now().Year(),
 			Month:          uint8(time.Now().Month()),

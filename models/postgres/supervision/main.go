@@ -151,7 +151,6 @@ func SaveSupervisionsToPostgres(supervisions []Supervision) ([]uint64, error) {
 
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
-				log.Printf("Skipped duplicate product: %s", supervision.Title)
 				continue
 			}
 			tx.Rollback(Ctx) // Rollback transaction if any error occurs
