@@ -104,7 +104,7 @@ func SaveSupervisionsToPostgres(supervisions []Supervision) ([]uint64, error) {
 
 	// Prepare the insert query (including created_at and updated_at)
 	query := `INSERT INTO supervisions (title, brand, price, original_price, discount, rating, rating_count, sold, seller_name, seller_url, location, weight, description, marketplace_id, comodity_id, keyword_id, link, image, created_at, updated_at, crawled_at, label)
-				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22) ON CONFLICT (title, seller_name, marketplace_id, description) DO NOTHING RETURNING id;`
+				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22) ON CONFLICT (title, seller_name, marketplace_id,date, description) DO NOTHING RETURNING id;`
 
 	var inserted []uint64
 	// Insert each product into the database
