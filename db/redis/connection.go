@@ -2,6 +2,7 @@ package redisdb
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 
@@ -14,8 +15,10 @@ var (
 )
 
 func InitRedis() {
+	addr := fmt.Sprintf("%s:%s", os.Getenv("REDIS_HOST"), os.Getenv("REDIS_PORT"))
+
 	Client = redis.NewClient(&redis.Options{
-		Addr:     os.Getenv("REDIS_HOST"),     // e.g. "localhost:6379"
+		Addr:     addr,                        // e.g. "localhost:6379"
 		Password: os.Getenv("REDIS_PASSWORD"), // empty means no password
 		DB:       0,                           // default DB
 	})
