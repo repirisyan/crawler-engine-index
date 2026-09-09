@@ -16,7 +16,7 @@ type Brand struct {
 func GetAllBrand(offset int, limit int) ([]Brand, error) {
 	conn := pgdb.GetPostgresPool()
 
-	query := `SELECT id, name, product_origin FROM brands LIMIT $2 OFFSET $1`
+	query := `SELECT id, name, COALESCE(product_origin, false) FROM brands LIMIT $2 OFFSET $1`
 
 	rows, err := conn.Query(Ctx, query, offset, limit)
 

@@ -71,7 +71,9 @@ func StoreSupervisionData() {
 					log.Printf("Failed to insert batch supervision product: %v\n", err)
 					continue
 				}
-				err = Crawler.SetSupervised(productID)
+				if err := Crawler.SetSupervised(productID); err != nil {
+					log.Printf("Failed to flag supervised products: %v\n", err)
+				}
 			}
 
 			if len(products) == 0 {
@@ -83,6 +85,4 @@ func StoreSupervisionData() {
 			offset += limit
 		}
 	}
-	log.Printf("Failed to insert batch supervision product: %v\n", err)
-
 }

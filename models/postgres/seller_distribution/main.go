@@ -17,14 +17,26 @@ type SellerDistribution struct {
 	Month          uint8  `bson:"month"`
 }
 
-func StoreSellerDistribution(sellerDistributions []SellerDistribution) error {
+// StoreSellerDistribution replaces all rows for (year, month) with the given
+// set, so re-running the cleaning pipeline in the same month does not
+// double-count.
+func StoreSellerDistribution(sellerDistributions []SellerDistribution, year int, month int) error {
 	// Get PostgreSQL connection pool
 	conn := pgdb.GetPostgresPool()
 
 	// Begin a transaction
 	tx, err := conn.Begin(Ctx)
 	if err != nil {
-		log.Fatalf("Failed to begin transaction: %v", err)
+		log.Printf("Failed to begin transaction: %v", err)
+		return err
+	}
+	defer tx.Rollback(Ctx) // no-op once committed
+
+	if _, err := tx.Exec(Ctx,
+		`DELETE FROM seller_distribution_summaries WHERE year = $1 AND month = $2`,
+		year, month,
+	); err != nil {
+		log.Printf("Failed to clear seller distribution for %d-%02d: %v", year, month, err)
 		return err
 	}
 

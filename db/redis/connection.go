@@ -38,7 +38,8 @@ func FlushAllDB() {
 	// Flush all keys in all databases
 	err := Client.FlushAll(Ctx).Err()
 	if err != nil {
-		panic(err)
+		log.Printf("⚠️ Redis flush failed: %v", err)
+		return
 	}
 
 	log.Println("Redis flushed successfully")

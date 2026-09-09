@@ -3,6 +3,7 @@ package controllers
 import (
 	"fmt"
 	"log"
+	"time"
 
 	Brand "crawler-index/models/postgres/brand"
 	BrandLeaderboard "crawler-index/models/postgres/brand_leaderboard"
@@ -11,6 +12,9 @@ import (
 
 func StoreRegionBrand() {
 	fmt.Println("Store Region Brand Data")
+
+	now := time.Now()
+	year, month := now.Year(), int(now.Month())
 
 	limit := 1000
 	offset := 0
@@ -25,7 +29,7 @@ func StoreRegionBrand() {
 		var brandResult []RegionBrand.RegionBrandLeaderboard
 
 		for _, brand := range brands {
-			brand_results, err := BrandLeaderboard.SearchBrand(brand.Name)
+			brand_results, err := BrandLeaderboard.SearchBrand(brand.Name, year, month)
 
 			if err != nil {
 				fmt.Printf("Error fetching brand leaderboard: %v\n", err)

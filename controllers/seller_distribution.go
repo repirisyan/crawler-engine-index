@@ -31,7 +31,8 @@ func StoreSellerDistribution() {
 	}
 
 	if len(sellerDistributionResult) > 0 {
-		err = SellerDistribution.StoreSellerDistribution(sellerDistributionResult)
+		now := time.Now()
+		err = SellerDistribution.StoreSellerDistribution(sellerDistributionResult, now.Year(), int(now.Month()))
 		if err != nil {
 			log.Printf("Failed to insert batch products: %v\n", err)
 		}

@@ -3,6 +3,7 @@ package models
 import (
 	"context"
 	pgdb "crawler-index/db/postgres"
+	"crawler-index/models/postgres/dbutil"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -98,51 +99,62 @@ func SaveSupervisionsToPostgres(supervisions []Supervision) ([]uint64, error) {
 	// Begin a transaction
 	tx, err := conn.Begin(Ctx)
 	if err != nil {
-		log.Fatalf("Failed to begin transaction: %v", err)
+		log.Printf("Failed to begin transaction: %v", err)
 		return nil, err
 	}
+	defer tx.Rollback(Ctx) // no-op once committed
 
 	// Prepare the insert query (including created_at and updated_at)
 	query := `INSERT INTO supervisions (title, brand, price, original_price, discount, rating, rating_count, sold, seller_name, seller_url, location, weight, description, marketplace_id, comodity_id, keyword_id, link, image, created_at, updated_at, crawled_at, label)
 				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22) ON CONFLICT (title, seller_name, marketplace_id,date, description) DO NOTHING RETURNING id;`
 
 	var inserted []uint64
+	skipped := 0
 	// Insert each product into the database
 	for _, supervision := range supervisions {
 		// Marshal Location and Image to JSON
 		locationJSON, err := json.Marshal(supervision.Location)
 		if err != nil {
 			log.Printf("⚠️ Failed to marshal location: %v", err)
+			skipped++
 			continue
 		}
 
 		imageJSON, err := json.Marshal(supervision.Image)
 		if err != nil {
 			log.Printf("⚠️ Failed to marshal image: %v", err)
+			skipped++
 			continue
 		}
 
+		// One savepoint per row so a single bad row is skipped instead of
+		// aborting the whole batch.
+		sp, err := tx.Begin(Ctx)
+		if err != nil {
+			log.Printf("Failed to create savepoint: %v", err)
+			return nil, err
+		}
+
 		var rowID uint64
-		// Execute the query with all columns, including created_at and updated_at
-		err = tx.QueryRow(Ctx, query,
-			supervision.Title,         // title
-			supervision.Brand,         // brand (nullable)
-			supervision.Price,         // price
-			supervision.OriginalPrice, // original_price
-			supervision.Discount,      // discount
-			supervision.Rating,        // rating
-			supervision.RatingCount,   // rating_count
-			supervision.Sold,          // sold
-			supervision.SellerName,    // seller_name
-			supervision.SellerURL,     // seller_url (nullable)
-			locationJSON,              // location (JSON)
-			supervision.Weight,        // weight
-			supervision.Description,   // description
-			supervision.MarketplaceID, // marketplace_id
-			supervision.ComodityID,    // commodity_id
-			supervision.KeywordID,     // keyword_id
-			supervision.Link,          // link
-			imageJSON,                 // image (JSON),
+		err = sp.QueryRow(Ctx, query,
+			dbutil.Truncate(supervision.Title, 1000),   // title
+			dbutil.TruncatePtr(supervision.Brand, 255), // brand (nullable)
+			supervision.Price,                          // price
+			supervision.OriginalPrice,                  // original_price
+			supervision.Discount,                       // discount
+			supervision.Rating,                         // rating
+			supervision.RatingCount,                    // rating_count
+			supervision.Sold,                           // sold
+			dbutil.Truncate(supervision.SellerName, 1000),   // seller_name
+			dbutil.TruncatePtr(supervision.SellerURL, 1000), // seller_url (nullable)
+			locationJSON,                                    // location (JSON)
+			supervision.Weight,                              // weight
+			supervision.Description,                         // description
+			supervision.MarketplaceID,                       // marketplace_id
+			supervision.ComodityID,                          // commodity_id
+			supervision.KeywordID,                           // keyword_id
+			dbutil.Truncate(supervision.Link, 1500),         // link
+			imageJSON,                                       // image (JSON)
 			time.Now(),
 			time.Now(),
 			supervision.Crawled_at,
@@ -150,11 +162,16 @@ func SaveSupervisionsToPostgres(supervisions []Supervision) ([]uint64, error) {
 		).Scan(&rowID)
 
 		if err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
-				continue
+			// ErrNoRows just means the row already existed (ON CONFLICT).
+			if !errors.Is(err, pgx.ErrNoRows) {
+				log.Printf("Skipping supervision %q: %v", supervision.Title, err)
+				skipped++
 			}
-			tx.Rollback(Ctx) // Rollback transaction if any error occurs
-			log.Printf("Failed to insert supervision: %v", err)
+			sp.Rollback(Ctx)
+			continue
+		}
+		if err := sp.Commit(Ctx); err != nil { // release savepoint
+			log.Printf("Failed to release savepoint: %v", err)
 			return nil, err
 		}
 
@@ -163,11 +180,14 @@ func SaveSupervisionsToPostgres(supervisions []Supervision) ([]uint64, error) {
 
 	// Commit the transaction
 	if err := tx.Commit(Ctx); err != nil {
-		tx.Rollback(Ctx)
 		log.Printf("Failed to commit transaction: %v", err)
 		return nil, err
 	}
 
-	log.Println("✅ Supervisions saved to PostgreSQL")
+	if skipped > 0 {
+		log.Printf("✅ Supervisions saved to PostgreSQL (%d row(s) skipped)", skipped)
+	} else {
+		log.Println("✅ Supervisions saved to PostgreSQL")
+	}
 	return inserted, nil
 }

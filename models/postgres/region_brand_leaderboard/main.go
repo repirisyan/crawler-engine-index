@@ -21,7 +21,7 @@ func SaveBrandToPostgres(brands []RegionBrandLeaderboard) error {
 	// Begin a transaction
 	tx, err := conn.Begin(Ctx)
 	if err != nil {
-		log.Fatalf("Failed to begin transaction: %v", err)
+		log.Printf("Failed to begin transaction: %v", err)
 		return err
 	}
 

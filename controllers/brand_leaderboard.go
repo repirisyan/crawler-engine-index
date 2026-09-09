@@ -32,7 +32,8 @@ func StoreBrandLeaderboard() {
 	}
 
 	if len(brandLeaderBoardResult) > 0 {
-		err = BrandLeaderboard.StoreBrandLeaderboard(brandLeaderBoardResult)
+		now := time.Now()
+		err = BrandLeaderboard.StoreBrandLeaderboard(brandLeaderBoardResult, now.Year(), int(now.Month()))
 		if err != nil {
 			log.Printf("Failed to insert batch products: %v\n", err)
 		}

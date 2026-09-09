@@ -21,14 +21,37 @@ type BrandID struct {
 	ID uint64 `json:"id"`
 }
 
-func StoreBrandLeaderboard(brands []BrandLeaderboard) error {
+// StoreBrandLeaderboard replaces all rows for (year, month) with the given set,
+// so re-running the cleaning pipeline in the same month does not double-count.
+// Dependent region_brand_leader_boards rows for the period are cleared first
+// (the FK has no ON DELETE CASCADE).
+func StoreBrandLeaderboard(brands []BrandLeaderboard, year int, month int) error {
 	// Get PostgreSQL connection pool
 	conn := pgdb.GetPostgresPool()
 
 	// Begin a transaction
 	tx, err := conn.Begin(Ctx)
 	if err != nil {
-		log.Fatalf("Failed to begin transaction: %v", err)
+		log.Printf("Failed to begin transaction: %v", err)
+		return err
+	}
+	defer tx.Rollback(Ctx) // no-op once committed
+
+	if _, err := tx.Exec(Ctx, `
+		DELETE FROM region_brand_leader_boards
+		 WHERE brand_leader_board_id IN (
+		   SELECT id FROM brand_leader_boards WHERE year = $1 AND month = $2
+		 )`, year, month,
+	); err != nil {
+		log.Printf("Failed to clear region brand leaderboard for %d-%02d: %v", year, month, err)
+		return err
+	}
+
+	if _, err := tx.Exec(Ctx,
+		`DELETE FROM brand_leader_boards WHERE year = $1 AND month = $2`,
+		year, month,
+	); err != nil {
+		log.Printf("Failed to clear brand leaderboard for %d-%02d: %v", year, month, err)
 		return err
 	}
 
@@ -64,12 +87,12 @@ func StoreBrandLeaderboard(brands []BrandLeaderboard) error {
 	return nil
 }
 
-func SearchBrand(brand string) ([]BrandID, error) {
+func SearchBrand(brand string, year int, month int) ([]BrandID, error) {
 	conn := pgdb.GetPostgresPool()
 
-	query := `SELECT id FROM brand_leader_boards WHERE brand = $1`
+	query := `SELECT id FROM brand_leader_boards WHERE brand = $1 AND year = $2 AND month = $3`
 
-	rows, err := conn.Query(Ctx, query, brand)
+	rows, err := conn.Query(Ctx, query, brand, year, month)
 
 	if err != nil {
 		return nil, err

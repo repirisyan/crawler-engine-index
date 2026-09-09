@@ -3,6 +3,7 @@ package models
 import (
 	"context"
 	pgdb "crawler-index/db/postgres"
+	"crawler-index/models/postgres/dbutil"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -88,68 +89,154 @@ func SaveProductsToPostgres(products []Product) error {
 	// Begin a transaction
 	tx, err := conn.Begin(Ctx)
 	if err != nil {
-		log.Fatalf("Failed to begin transaction: %v", err)
+		log.Printf("Failed to begin transaction: %v", err)
 		return err
 	}
+	defer tx.Rollback(Ctx) // no-op once committed
 
 	// Prepare the insert query (including created_at and updated_at)
 	query := `INSERT INTO crawlers (title, brand, price, original_price, discount, rating, rating_count, sold, seller_name, seller_url, location, weight, description, marketplace_id, comodity_id, keyword_id, link, image, created_at, updated_at)
 				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20) ON CONFLICT (title, seller_name, marketplace_id) DO NOTHING;`
 
+	skipped := 0
 	// Insert each product into the database
 	for _, product := range products {
 		// Marshal Location and Image to JSON
 		locationJSON, err := json.Marshal(product.Location)
 		if err != nil {
 			log.Printf("⚠️ Failed to marshal location: %v", err)
+			skipped++
 			continue
 		}
 
 		imageJSON, err := json.Marshal(product.Image)
 		if err != nil {
 			log.Printf("⚠️ Failed to marshal image: %v", err)
+			skipped++
 			continue
 		}
 
-		// Execute the query with all columns, including created_at and updated_at
-		_, err = tx.Exec(Ctx, query,
-			product.Title,         // title
-			product.Brand,         // brand (nullable)
-			product.Price,         // price
-			product.OriginalPrice, // original_price
-			product.Discount,      // discount
-			product.Rating,        // rating
-			product.RatingCount,   // rating_count
-			product.Sold,          // sold
-			product.SellerName,    // seller_name
-			product.SellerURL,     // seller_url (nullable)
-			locationJSON,          // location (JSON)
-			product.Weight,        // weight
-			product.Description,   // description
-			product.MarketplaceID, // marketplace_id
-			product.ComodityID,    // commodity_id
-			product.KeywordID,     // keyword_id
-			product.Link,          // link
-			imageJSON,             // image (JSON),
+		// One savepoint per row so a single bad row (e.g. FK violation,
+		// value too long) is skipped instead of aborting the whole batch.
+		sp, err := tx.Begin(Ctx)
+		if err != nil {
+			log.Printf("Failed to create savepoint: %v", err)
+			return err
+		}
+
+		_, err = sp.Exec(Ctx, query,
+			dbutil.Truncate(product.Title, 1000),   // title
+			dbutil.TruncatePtr(product.Brand, 255), // brand (nullable)
+			product.Price,                          // price
+			product.OriginalPrice,                  // original_price
+			product.Discount,                       // discount
+			product.Rating,                         // rating
+			product.RatingCount,                    // rating_count
+			product.Sold,                           // sold
+			dbutil.Truncate(product.SellerName, 1000),   // seller_name
+			dbutil.TruncatePtr(product.SellerURL, 1000), // seller_url (nullable)
+			locationJSON,                                // location (JSON)
+			product.Weight,                              // weight
+			product.Description,                         // description
+			product.MarketplaceID,                       // marketplace_id
+			product.ComodityID,                          // commodity_id
+			product.KeywordID,                           // keyword_id
+			dbutil.Truncate(product.Link, 1500),         // link
+			imageJSON,                                   // image (JSON)
 			time.Now(),
 			time.Now(),
 		)
 		if err != nil {
-			tx.Rollback(Ctx) // Rollback transaction if any error occurs
-			log.Printf("Failed to insert product: %v", err)
+			sp.Rollback(Ctx)
+			log.Printf("Skipping product %q: %v", product.Title, err)
+			skipped++
+			continue
+		}
+		if err := sp.Commit(Ctx); err != nil { // release savepoint
+			log.Printf("Failed to release savepoint: %v", err)
 			return err
 		}
 	}
 
 	// Commit the transaction
 	if err := tx.Commit(Ctx); err != nil {
-		tx.Rollback(Ctx)
 		log.Printf("Failed to commit transaction: %v", err)
 		return err
 	}
 
-	log.Println("✅ Products saved to PostgreSQL")
+	if skipped > 0 {
+		log.Printf("✅ Products saved to PostgreSQL (%d row(s) skipped)", skipped)
+	} else {
+		log.Println("✅ Products saved to PostgreSQL")
+	}
 	return nil
+}
+
+// CategoryCandidate is the minimal row shape category validation needs.
+type CategoryCandidate struct {
+	ID        uint64
+	Title     string
+	KeywordID uint64
+}
+
+// CategoryUpdate is a corrected category for one crawler row.
+type CategoryUpdate struct {
+	ID         uint64
+	KeywordID  uint64
+	ComodityID uint64
+}
+
+// GetProductsForCategoryValidation pages through crawler rows touched within the
+// last sinceHours (i.e. inserted by the current pipeline run), returning only
+// the fields needed to re-predict a category.
+func GetProductsForCategoryValidation(sinceHours, offset, limit int) ([]CategoryCandidate, error) {
+	conn := pgdb.GetPostgresPool()
+
+	query := `SELECT id, title, keyword_id
+		FROM crawlers
+		WHERE updated_at >= NOW() - make_interval(hours => $1)
+		ORDER BY id
+		LIMIT $2 OFFSET $3`
+
+	rows, err := conn.Query(Ctx, query, sinceHours, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []CategoryCandidate
+	for rows.Next() {
+		var c CategoryCandidate
+		if err := rows.Scan(&c.ID, &c.Title, &c.KeywordID); err != nil {
+			return nil, err
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+// UpdateProductCategories applies corrected keyword_id / comodity_id values to
+// crawler rows in a single transaction.
+func UpdateProductCategories(updates []CategoryUpdate) error {
+	if len(updates) == 0 {
+		return nil
+	}
+
+	conn := pgdb.GetPostgresPool()
+	tx, err := conn.Begin(Ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(Ctx)
+
+	const query = `UPDATE crawlers SET keyword_id = $2, comodity_id = $3, updated_at = NOW() WHERE id = $1`
+	for _, u := range updates {
+		if _, err := tx.Exec(Ctx, query, u.ID, u.KeywordID, u.ComodityID); err != nil {
+			log.Printf("category update failed for id %d: %v", u.ID, err)
+			return err
+		}
+	}
+	return tx.Commit(Ctx)
 }
 
 func GetAllProducts(offset int, limit int) ([]Product, error) {

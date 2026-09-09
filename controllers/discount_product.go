@@ -32,7 +32,8 @@ func StoreDiscountProduct() {
 	}
 
 	if len(discountProductResult) > 0 {
-		err = DiscountProduct.StoreDiscountSummaries(discountProductResult)
+		now := time.Now()
+		err = DiscountProduct.StoreDiscountSummaries(discountProductResult, now.Year(), int(now.Month()))
 		if err != nil {
 			log.Printf("Failed to insert batch discount products: %v\n", err)
 		}
